@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routes import health
-from app.routes import config, products, inventory, seed
+from app.routes import config, products, inventory, seed, receipts
 
 settings = get_settings()
 
@@ -14,7 +14,6 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -27,12 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers
 app.include_router(health.router,    tags=["system"])
 app.include_router(seed.router,      tags=["system"])
 app.include_router(config.router,    tags=["config"])
 app.include_router(products.router,  tags=["products"])
 app.include_router(inventory.router, tags=["inventory"])
+app.include_router(receipts.router,  tags=["receipts"])
 
 
 @app.get("/")
