@@ -74,3 +74,15 @@ export const shoppingApi = {
 }
 
 export default api
+
+// ─── Stats ───────────────────────────────────────────────────────
+export interface InventoryStats {
+  total: number
+  expiring_soon: number
+  expired: number
+}
+
+export const statsApi = {
+  getInventory: () => api.get<InventoryStats>('/inventory/stats'),
+  getLocations: () => configApi.getLocations(),
+}
