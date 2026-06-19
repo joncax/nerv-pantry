@@ -78,4 +78,22 @@ export const receiptsApi = {
   getAll: () => api.get('/receipts'),
 }
 
+
+// ─── Barcode ─────────────────────────────────────────────────────
+export const barcodeApi = {
+  lookup: (barcode: string) => api.get(`/barcode/${barcode}`),
+}
+
+// ─── Meals ───────────────────────────────────────────────────────
+export const mealsApi = {
+  getToday: () => api.get('/meals/today'),
+  getByDate: (date: string) => api.get(`/meals?meal_date=${date}`),
+  create: (data: object) => api.post('/meals', data),
+  delete: (id: number) => api.delete(`/meals/${id}`),
+}
+
+export const mealTypesApi = {
+  getAll: () => api.get('/meal-types'),
+}
+
 export default api

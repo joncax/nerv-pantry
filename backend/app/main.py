@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routes import health
-from app.routes import config, products, inventory, seed, receipts
+from app.routes import config, products, inventory, seed, receipts, meals, barcode
 
 settings = get_settings()
 
@@ -32,6 +32,8 @@ app.include_router(config.router,    tags=["config"])
 app.include_router(products.router,  tags=["products"])
 app.include_router(inventory.router, tags=["inventory"])
 app.include_router(receipts.router,  tags=["receipts"])
+app.include_router(meals.router,     tags=["meals"])
+app.include_router(barcode.router,   tags=["barcode"])
 
 
 @app.get("/")

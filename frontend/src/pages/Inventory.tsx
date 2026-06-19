@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Package, Search, Filter, Plus, AlertTriangle, Clock } from 'lucide-react'
-import { inventoryApi } from '@/services/api'
-import type { InventoryItem, ExpiryStatus } from '@/types'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Package, Search, Filter, Plus, AlertTriangle, Clock, Trash2, CheckCircle, ScanLine } from 'lucide-react'
+import { inventoryApi, configApi, productsApi } from '@/services/api'
+import BarcodeScanner from '@/components/scanner/BarcodeScanner'
+import type { InventoryItem } from '@/types'
+
+type ExpiryStatus = 'expired' | 'critical' | 'warning' | 'ok' | 'none'
 
 function getExpiryStatus(expiryDate?: string): ExpiryStatus {
   if (!expiryDate) return 'none'
@@ -18,56 +21,202 @@ function getExpiryStatus(expiryDate?: string): ExpiryStatus {
 function ExpiryBadge({ date }: { date?: string }) {
   const status = getExpiryStatus(date)
   if (status === 'none') return null
-
   const config = {
     expired: { label: 'Expirado', color: 'var(--color-nerv-danger)' },
     critical: { label: date!, color: 'var(--color-nerv-danger)' },
     warning:  { label: date!, color: 'var(--color-nerv-warning)' },
     ok:       { label: date!, color: 'var(--color-nerv-muted)' },
   }[status]
-
   return (
     <span className="flex items-center gap-1 text-xs" style={{ color: config.color }}>
-      <Clock size={10} />
-      {config.label}
+      <Clock size={10} /> {config.label}
     </span>
   )
 }
 
-function InventoryRow({ item }: { item: InventoryItem }) {
-  const status = getExpiryStatus(item.expiry_date)
+function ConsumeModal({ item, onClose }: { item: InventoryItem; onClose: () => void }) {
+  const [qty, setQty] = useState(item.quantity)
+  const [type, setType] = useState<'used' | 'finished' | 'wasted'>('used')
+  const qc = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: () => inventoryApi.consume(item.id, qty, type),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); qc.invalidateQueries({ queryKey: ['inventory-stats'] }); onClose() },
+  })
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b transition-colors hover:brightness-110"
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+      <div className="rounded-lg border p-5 w-80 space-y-4"
+        style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
+        <h3 className="font-medium text-sm" style={{ color: 'var(--color-nerv-text)' }}>
+          Consumir — {item.product?.name}
+        </h3>
+
+        <div className="space-y-2">
+          {[
+            { value: 'used', label: 'Usei parte', icon: '🔽' },
+            { value: 'finished', label: 'Terminei tudo', icon: '✅' },
+            { value: 'wasted', label: 'Desperdicei', icon: '🗑️' },
+          ].map(opt => (
+            <button key={opt.value} onClick={() => setType(opt.value as typeof type)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-left"
+              style={{
+                backgroundColor: type === opt.value ? 'var(--color-nerv-border)' : 'transparent',
+                color: 'var(--color-nerv-text)',
+                border: `1px solid ${type === opt.value ? 'var(--color-nerv-accent)' : 'var(--color-nerv-border)'}`,
+              }}>
+              {opt.icon} {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {type === 'used' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>Quantidade usada:</span>
+            <input type="number" step="0.1" min="0.1" max={item.quantity}
+              value={qty} onChange={e => setQty(parseFloat(e.target.value))}
+              className="flex-1 bg-transparent border rounded px-2 py-1 text-sm text-center outline-none"
+              style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-text)' }} />
+            <span className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>{item.unit?.abbreviation}</span>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-1.5 rounded text-sm"
+            style={{ color: 'var(--color-nerv-muted)' }}>Cancelar</button>
+          <button onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            className="flex-1 py-1.5 rounded text-sm font-medium text-white"
+            style={{ backgroundColor: 'var(--color-nerv-accent)' }}>
+            {mutation.isPending ? 'A guardar...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AddProductModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient()
+  const [showScanner, setShowScanner] = useState(false)
+  const [form, setForm] = useState({ name: '', quantity: 1, unit_id: 1, location_id: 1, expiry_date: '' })
+
+  const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: () => configApi.getLocations().then(r => r.data) })
+  const { data: units = [] } = useQuery({ queryKey: ['units'], queryFn: () => configApi.getUnits().then(r => r.data) })
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const product = await productsApi.create({ name: form.name, consumption_type: 'partial' })
+      await inventoryApi.create({
+        product_id: product.data.id,
+        location_id: form.location_id,
+        quantity: form.quantity,
+        unit_id: form.unit_id,
+        expiry_date: form.expiry_date || undefined,
+      } as Parameters<typeof inventoryApi.create>[0])
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); qc.invalidateQueries({ queryKey: ['inventory-stats'] }); onClose() },
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+      {showScanner && <BarcodeScanner onDetected={b => { setForm(f => ({ ...f, name: b })); setShowScanner(false) }} onClose={() => setShowScanner(false)} />}
+      <div className="rounded-lg border p-5 w-80 space-y-3"
+        style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
+        <h3 className="font-medium text-sm" style={{ color: 'var(--color-nerv-text)' }}>Adicionar produto</h3>
+
+        <div className="flex gap-2">
+          <input placeholder="Nome do produto" value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            className="flex-1 bg-transparent border rounded px-2 py-1.5 text-sm outline-none"
+            style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-text)' }} />
+          <button onClick={() => setShowScanner(true)}
+            className="p-1.5 rounded border" title="Scanner de barcode"
+            style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-muted)' }}>
+            <ScanLine size={16} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <input type="number" step="0.1" placeholder="Qtd" value={form.quantity}
+            onChange={e => setForm(f => ({ ...f, quantity: parseFloat(e.target.value) }))}
+            className="bg-transparent border rounded px-2 py-1.5 text-sm outline-none"
+            style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-text)' }} />
+          <select value={form.unit_id} onChange={e => setForm(f => ({ ...f, unit_id: parseInt(e.target.value) }))}
+            className="bg-transparent border rounded px-2 py-1.5 text-sm outline-none"
+            style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-text)', backgroundColor: 'var(--color-nerv-surface)' }}>
+            {units.map(u => <option key={u.id} value={u.id}>{u.abbreviation}</option>)}
+          </select>
+        </div>
+
+        <select value={form.location_id} onChange={e => setForm(f => ({ ...f, location_id: parseInt(e.target.value) }))}
+          className="w-full bg-transparent border rounded px-2 py-1.5 text-sm outline-none"
+          style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-text)', backgroundColor: 'var(--color-nerv-surface)' }}>
+          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+
+        <input type="date" placeholder="Validade (opcional)" value={form.expiry_date}
+          onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))}
+          className="w-full bg-transparent border rounded px-2 py-1.5 text-sm outline-none"
+          style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-text)' }} />
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-1.5 rounded text-sm" style={{ color: 'var(--color-nerv-muted)' }}>Cancelar</button>
+          <button onClick={() => mutation.mutate()} disabled={!form.name || mutation.isPending}
+            className="flex-1 py-1.5 rounded text-sm font-medium text-white disabled:opacity-40"
+            style={{ backgroundColor: 'var(--color-nerv-accent)' }}>
+            {mutation.isPending ? 'A guardar...' : 'Adicionar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InventoryRow({ item, onConsume }: { item: InventoryItem; onConsume: (item: InventoryItem) => void }) {
+  const status = getExpiryStatus(item.expiry_date)
+  const qc = useQueryClient()
+  const deleteMutation = useMutation({
+    mutationFn: () => inventoryApi.delete(item.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventory'] }); qc.invalidateQueries({ queryKey: ['inventory-stats'] }) },
+  })
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 border-b group transition-colors"
       style={{
         borderColor: 'var(--color-nerv-border)',
-        backgroundColor: status === 'expired' || status === 'critical'
-          ? 'rgba(248,81,73,0.05)' : 'transparent'
+        backgroundColor: status === 'expired' || status === 'critical' ? 'rgba(248,81,73,0.05)' : 'transparent',
       }}>
-
-      {/* Status dot */}
       <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
-        backgroundColor:
-          status === 'expired' || status === 'critical' ? 'var(--color-nerv-danger)'
-          : status === 'warning' ? 'var(--color-nerv-warning)'
-          : 'var(--color-nerv-success)'
+        backgroundColor: status === 'expired' || status === 'critical' ? 'var(--color-nerv-danger)'
+          : status === 'warning' ? 'var(--color-nerv-warning)' : 'var(--color-nerv-success)'
       }} />
 
-      {/* Product name */}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate" style={{ color: 'var(--color-nerv-text)' }}>
           {item.product?.name ?? `Produto #${item.product_id}`}
         </div>
         <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>
-            {item.location?.name ?? '—'}
-          </span>
+          <span className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>{item.location?.name ?? '—'}</span>
           <ExpiryBadge date={item.expiry_date} />
         </div>
       </div>
 
-      {/* Quantity */}
       <div className="text-sm font-medium shrink-0" style={{ color: 'var(--color-nerv-text)' }}>
         {item.quantity} {item.unit?.abbreviation ?? ''}
+      </div>
+
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => onConsume(item)} title="Consumir"
+          className="p-1 rounded hover:brightness-125"
+          style={{ color: 'var(--color-nerv-success)' }}>
+          <CheckCircle size={15} />
+        </button>
+        <button onClick={() => deleteMutation.mutate()} title="Eliminar"
+          className="p-1 rounded hover:brightness-125"
+          style={{ color: 'var(--color-nerv-danger)' }}>
+          <Trash2 size={15} />
+        </button>
       </div>
     </div>
   )
@@ -75,6 +224,8 @@ function InventoryRow({ item }: { item: InventoryItem }) {
 
 export default function Inventory() {
   const [search, setSearch] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [consumeItem, setConsumeItem] = useState<InventoryItem | null>(null)
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['inventory'],
@@ -87,53 +238,42 @@ export default function Inventory() {
 
   return (
     <div className="space-y-4">
+      {showAdd && <AddProductModal onClose={() => setShowAdd(false)} />}
+      {consumeItem && <ConsumeModal item={consumeItem} onClose={() => setConsumeItem(null)} />}
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--color-nerv-text)' }}>
-            Inventário
-          </h1>
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--color-nerv-text)' }}>Inventário</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-nerv-muted)' }}>
             {items.length} {items.length === 1 ? 'artigo' : 'artigos'} em stock
           </p>
         </div>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium text-white"
+        <button onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium text-white"
           style={{ backgroundColor: 'var(--color-nerv-accent)' }}>
-          <Plus size={14} />
-          Adicionar
+          <Plus size={14} /> Adicionar
         </button>
       </div>
 
-      {/* Search + filter */}
       <div className="flex gap-2">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded border"
           style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
           <Search size={14} style={{ color: 'var(--color-nerv-muted)' }} />
-          <input
-            type="text"
-            placeholder="Pesquisar produtos..."
-            value={search}
+          <input type="text" placeholder="Pesquisar produtos..." value={search}
             onChange={e => setSearch(e.target.value)}
             className="flex-1 bg-transparent text-sm outline-none"
-            style={{ color: 'var(--color-nerv-text)' }}
-          />
+            style={{ color: 'var(--color-nerv-text)' }} />
         </div>
         <button className="flex items-center gap-1.5 px-3 py-2 rounded border text-sm"
           style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-muted)' }}>
-          <Filter size={14} />
-          Filtros
+          <Filter size={14} /> Filtros
         </button>
       </div>
 
-      {/* List */}
       <div className="rounded-lg border overflow-hidden"
         style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
-
         {isLoading ? (
-          <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-nerv-muted)' }}>
-            A carregar...
-          </div>
+          <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-nerv-muted)' }}>A carregar...</div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <Package size={32} className="mx-auto mb-3" style={{ color: 'var(--color-nerv-border)' }} />
@@ -145,9 +285,10 @@ export default function Inventory() {
             </p>
           </div>
         ) : (
-          filtered.map(item => <InventoryRow key={item.id} item={item} />)
+          filtered.map(item => <InventoryRow key={item.id} item={item} onConsume={setConsumeItem} />)
         )}
       </div>
     </div>
   )
 }
+
