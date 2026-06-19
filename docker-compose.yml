@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nerv-pantry-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nerv_pantry
+      POSTGRES_USER: pantry_user
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pantry_user -d nerv_pantry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nerv-pantry-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: nerv_pantry
+      POSTGRES_USER: pantry_user
+      POSTGRES_PASSWORD: changeme
+      API_KEY: dev-api-key-changeme
+      DEBUG: "true"
+      APP_VERSION: "0.1.0"
+    volumes:
+      - ./backend:/app
+      - images_data:/data/images
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  images_data:
+

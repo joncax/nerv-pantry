@@ -38,4 +38,3 @@ backend/uploads/
 Thumbs.db
 
 # Alembic
-backend/app/db/migrations/versions/*.py

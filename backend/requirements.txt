@@ -1,0 +1,25 @@
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Database
+sqlalchemy==2.0.35
+alembic==1.13.3
+psycopg2-binary==2.9.9
+
+# Validation
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# Image processing / OCR
+pillow==10.4.0
+pytesseract==0.3.13
+
+# HTTP client (Open Food Facts)
+httpx==0.27.2
+
+# Security
+python-multipart==0.0.12
+
+# Utilities
+python-dotenv==1.0.1
