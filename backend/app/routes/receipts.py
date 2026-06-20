@@ -109,9 +109,10 @@ def confirm_receipt(
 
         # Determinar unidade
         unit_id = item_data.unit_id
-        if not unit_id and item_data.unit_guess:
+        unit_guess = getattr(item_data, 'unit_guess', None)
+        if not unit_id and unit_guess:
             unit = db.query(Unit).filter(
-                Unit.abbreviation == item_data.unit_guess
+                Unit.abbreviation == unit_guess
             ).first()
             if unit:
                 unit_id = unit.id
