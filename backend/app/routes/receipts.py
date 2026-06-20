@@ -86,8 +86,13 @@ def confirm_receipt(
     total_savings = 0.0
 
     for item_data in data.items:
+        # Linhas de desconto: contabilizar poupança e saltar
         if item_data.is_discount_line:
             total_savings += item_data.discount_amount or 0
+            continue
+
+        # Linhas sem nome (rodapé OCR, texto não reconhecido): ignorar completamente
+        if not item_data.parsed_name or not item_data.parsed_name.strip():
             continue
 
         # Criar ou usar produto existente
