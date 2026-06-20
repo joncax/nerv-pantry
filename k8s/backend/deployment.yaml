@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-pantry-backend
+  namespace: nerv-pantry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nerv-pantry-backend
+  template:
+    metadata:
+      labels:
+        app: nerv-pantry-backend
+    spec:
+      containers:
+        - name: backend
+          image: nerv-pantry-backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: nerv-pantry-backend-config
+          volumeMounts:
+            - name: images-data
+              mountPath: /data/images
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: images-data
+          persistentVolumeClaim:
+            claimName: images-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nerv-pantry-backend
+  namespace: nerv-pantry
+spec:
+  type: NodePort
+  selector:
+    app: nerv-pantry-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30191

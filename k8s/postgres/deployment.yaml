@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nerv-pantry-postgres
+  namespace: nerv-pantry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nerv-pantry-postgres
+  template:
+    metadata:
+      labels:
+        app: nerv-pantry-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "nerv_pantry"
+            - name: POSTGRES_USER
+              value: "pantry_user"
+            - name: POSTGRES_PASSWORD
+              value: "pantry_pass_prod"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "pantry_user", "-d", "nerv_pantry"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nerv-pantry-postgres
+  namespace: nerv-pantry
+spec:
+  type: ClusterIP
+  selector:
+    app: nerv-pantry-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

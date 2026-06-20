@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nerv-pantry-backend-config
+  namespace: nerv-pantry
+data:
+  POSTGRES_HOST: "nerv-pantry-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "nerv_pantry"
+  POSTGRES_USER: "pantry_user"
+  POSTGRES_PASSWORD: "pantry_pass_prod"
+  API_KEY: "nerv-pantry-api-key-changeme"
+  IMAGES_PATH: "/data/images"
+  APP_VERSION: "1.0.0"
+  DEBUG: "false"
+  OFF_API_URL: "https://world.openfoodfacts.org/api/v2"
