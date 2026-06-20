@@ -42,12 +42,18 @@ class ReceiptItem(Base):
     # discount_type: 'cartao' | 'promocao' | 'pack' | 'outro'
     effective_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # Parser hint — unidade detetada pelo OCR, guardada para uso no confirm
+    unit_guess: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Item adicionado manualmente pelo utilizador (não veio do OCR)
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+
     product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("products.id"), nullable=True)
     is_discount_line: Mapped[bool] = mapped_column(Boolean, default=False)
     barcode_lookup_attempted: Mapped[bool] = mapped_column(Boolean, default=False)
     barcode_lookup_source: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     # source: 'open_food_facts' | 'manual' | 'scan'
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    add_to_inventory: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships

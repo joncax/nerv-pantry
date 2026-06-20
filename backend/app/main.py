@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from app.config import get_settings
 from app.routes import health
 from app.routes import config, products, inventory, seed, receipts, meals, barcode, shopping, reports
@@ -25,6 +27,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Servir imagens dos talões como ficheiros estáticos
+# URL: /images/<nome-do-ficheiro>.jpg
+os.makedirs(settings.images_path, exist_ok=True)
+app.mount("/images", StaticFiles(directory=settings.images_path), name="images")
 
 app.include_router(health.router,    tags=["system"])
 app.include_router(seed.router,      tags=["system"])
