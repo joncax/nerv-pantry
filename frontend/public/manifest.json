@@ -1,0 +1,32 @@
+{
+  "name": "nerv-pantry",
+  "short_name": "Pantry",
+  "description": "Gestão de inventário doméstico",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Lista de Compras",
+      "short_name": "Compras",
+      "url": "/shopping",
+      "description": "Ver lista de compras"
+    },
+    {
+      "name": "Scanner de Talões",
+      "short_name": "Scanner",
+      "url": "/scanner",
+      "description": "Digitalizar talão"
+    }
+  ]
+}

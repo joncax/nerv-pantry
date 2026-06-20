@@ -96,4 +96,21 @@ export const mealTypesApi = {
   getAll: () => api.get('/meal-types'),
 }
 
+
+// ─── Shopping ────────────────────────────────────────────────────
+export const shoppingListApi = {
+  getAll: () => api.get('/shopping'),
+  add: (data: object) => api.post('/shopping', data),
+  patch: (id: number, data: object) => api.patch(`/shopping/${id}`, data),
+  delete: (id: number) => api.delete(`/shopping/${id}`),
+  clearCompleted: () => api.delete('/shopping/completed/clear'),
+  generate: () => api.post('/shopping/generate'),
+}
+
+// ─── Reports ─────────────────────────────────────────────────────
+export const reportsApi = {
+  getSummary: () => api.get('/reports/summary'),
+  getCostHistory: (months?: number) => api.get(`/reports/costs${months ? `?months=${months}` : ''}`),
+}
+
 export default api
