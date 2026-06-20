@@ -67,17 +67,83 @@ export const statsApi = {
 }
 
 // ─── Receipts ────────────────────────────────────────────────────
+
+export interface Receipt {
+  id: number
+  store_id: number | null
+  purchase_date: string | null
+  total_amount: number | null
+  total_savings: number | null
+  image_path: string | null
+  status: 'pending' | 'confirmed' | 'error'
+  processed_at: string | null
+  created_at: string
+}
+
+export interface ReceiptItem {
+  id: number
+  receipt_id: number
+  raw_text: string | null
+  parsed_name: string | null
+  parsed_quantity: number | null
+  parsed_unit_id: number | null
+  unit_guess: string | null
+  original_price: number | null
+  discount_amount: number | null
+  discount_type: string | null
+  effective_price: number | null
+  product_id: number | null
+  is_discount_line: boolean
+  confirmed: boolean
+  add_to_inventory: boolean
+  is_manual: boolean
+  created_at: string
+}
+
 export const receiptsApi = {
-  // Sem Content-Type manual — axios gere o boundary do multipart automaticamente
-  upload: (formData: FormData) => api.post('/receipts/upload', formData, {
+  // Upload + OCR
+  upload: (formData: FormData) => api.post<Receipt>('/receipts/upload', formData, {
     headers: { 'Content-Type': undefined },
     timeout: 60000,
   }),
-  confirm: (receiptId: number, data: object) =>
-    api.post(`/receipts/${receiptId}/confirm`, data),
-  getAll: () => api.get('/receipts'),
-}
 
+  // Listar e obter talões
+  getAll: () => api.get<Receipt[]>('/receipts'),
+  getById: (id: number) => api.get<Receipt>(`/receipts/${id}`),
+
+  // Confirmar talão (novo fluxo: sem items no body)
+  confirm: (id: number, data: { store_id?: number | null; purchase_date?: string | null }) =>
+    api.post<Receipt>(`/receipts/${id}/confirm`, data),
+
+  // Editar e apagar talão (U1-B)
+  update: (id: number, data: { store_id?: number | null; purchase_date?: string | null }) =>
+    api.put<Receipt>(`/receipts/${id}`, data),
+  delete: (id: number) => api.delete(`/receipts/${id}`),
+
+  // Items do talão (U1-B)
+  getItems: (id: number) => api.get<ReceiptItem[]>(`/receipts/${id}/items`),
+  addItem: (id: number, data: {
+    parsed_name: string
+    parsed_quantity?: number
+    unit_id?: number
+    unit_guess?: string
+    original_price?: number
+    effective_price?: number
+    add_to_inventory?: boolean
+  }) => api.post<ReceiptItem>(`/receipts/${id}/items`, data),
+  updateItem: (id: number, itemId: number, data: Partial<{
+    parsed_name: string
+    parsed_quantity: number
+    unit_id: number
+    unit_guess: string
+    original_price: number
+    effective_price: number
+    add_to_inventory: boolean
+    confirmed: boolean
+  }>) => api.put<ReceiptItem>(`/receipts/${id}/items/${itemId}`, data),
+  deleteItem: (id: number, itemId: number) =>
+    api.delete(`/receipts/${id}/items/${itemId}`),
+}
 
 // ─── Barcode ─────────────────────────────────────────────────────
 export const barcodeApi = {
@@ -96,8 +162,7 @@ export const mealTypesApi = {
   getAll: () => api.get('/meal-types'),
 }
 
-
-// ─── Shopping ────────────────────────────────────────────────────
+// ─── Shopping List ────────────────────────────────────────────────
 export const shoppingListApi = {
   getAll: () => api.get('/shopping'),
   add: (data: object) => api.post('/shopping', data),

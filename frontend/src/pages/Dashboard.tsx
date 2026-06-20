@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Package, AlertTriangle, ShoppingCart, TrendingDown, Refrigerator, Clock } from 'lucide-react'
-import { healthApi, statsApi, configApi } from '@/services/api'
+import { Link } from 'react-router-dom'
+import {
+  Package, AlertTriangle, ShoppingCart,
+  TrendingDown, Refrigerator, Clock, FileText, CheckCircle,
+} from 'lucide-react'
+import { healthApi, statsApi, configApi, receiptsApi, type Receipt } from '@/services/api'
 
 interface StatCardProps {
   icon: React.ReactNode
@@ -9,12 +13,18 @@ interface StatCardProps {
   sub?: string
   accent?: string
   loading?: boolean
+  to?: string  // navegação ao clicar
 }
 
-function StatCard({ icon, label, value, sub, accent, loading }: StatCardProps) {
-  return (
-    <div className="rounded-lg p-4 border"
-      style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
+function StatCard({ icon, label, value, sub, accent, loading, to }: StatCardProps) {
+  const inner = (
+    <div
+      className="rounded-lg p-4 border h-full"
+      style={{
+        backgroundColor: 'var(--color-nerv-surface)',
+        borderColor: to ? accent ?? 'var(--color-nerv-border)' : 'var(--color-nerv-border)',
+      }}
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-medium uppercase tracking-wide"
           style={{ color: 'var(--color-nerv-muted)' }}>
@@ -24,7 +34,7 @@ function StatCard({ icon, label, value, sub, accent, loading }: StatCardProps) {
           {icon}
         </span>
       </div>
-      <div className="text-2xl font-bold" style={{ color: 'var(--color-nerv-text)' }}>
+      <div className="text-2xl font-bold" style={{ color: accent ?? 'var(--color-nerv-text)' }}>
         {loading ? <span style={{ color: 'var(--color-nerv-border)' }}>—</span> : value}
       </div>
       {sub && (
@@ -34,6 +44,15 @@ function StatCard({ icon, label, value, sub, accent, loading }: StatCardProps) {
       )}
     </div>
   )
+
+  if (to) {
+    return (
+      <Link to={to} className="block transition-opacity hover:opacity-80">
+        {inner}
+      </Link>
+    )
+  }
+  return inner
 }
 
 export default function Dashboard() {
@@ -53,6 +72,27 @@ export default function Dashboard() {
     queryKey: ['locations'],
     queryFn: () => configApi.getLocations().then(r => r.data),
   })
+
+  const { data: receipts } = useQuery({
+    queryKey: ['receipts'],
+    queryFn: () => receiptsApi.getAll().then(r => r.data),
+    refetchInterval: 60_000,
+  })
+
+  const pendingCount = (receipts as Receipt[] | undefined)
+    ?.filter(r => r.status === 'pending').length ?? 0
+
+  // Cor e ícone do card de pendentes
+  const pendingAccent = pendingCount > 0
+    ? 'var(--color-nerv-warning)'
+    : 'var(--color-nerv-success)'
+  const pendingIcon = pendingCount > 0
+    ? <FileText size={16} />
+    : <CheckCircle size={16} />
+  const pendingValue = pendingCount > 0 ? pendingCount : '✓'
+  const pendingSub = pendingCount > 0
+    ? `${pendingCount === 1 ? 'talão aguarda' : 'talões aguardam'} confirmação`
+    : 'todos os talões confirmados'
 
   return (
     <div className="space-y-6">
@@ -77,15 +117,20 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats grid */}
+      {/* Stats grid — ordem mobile-first: Pendentes, A Expirar, resto */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+
+        {/* 1º — Talões Pendentes (prioritário no mobile) */}
         <StatCard
-          icon={<Package size={16} />}
-          label="Total Produtos"
-          value={stats?.total ?? 0}
-          sub="no inventário"
-          loading={statsLoading}
+          icon={pendingIcon}
+          label="Talões Pendentes"
+          value={pendingValue}
+          sub={pendingSub}
+          accent={pendingAccent}
+          to="/taloes"
         />
+
+        {/* 2º — A Expirar (prioritário no mobile) */}
         <StatCard
           icon={<AlertTriangle size={16} />}
           label="A Expirar"
@@ -94,6 +139,17 @@ export default function Dashboard() {
           accent={stats?.expiring_soon ? 'var(--color-nerv-warning)' : undefined}
           loading={statsLoading}
         />
+
+        {/* 3º — Total em Stock */}
+        <StatCard
+          icon={<Package size={16} />}
+          label="Total em Stock"
+          value={stats?.total ?? 0}
+          sub="no inventário"
+          loading={statsLoading}
+        />
+
+        {/* 4º — Expirados */}
         <StatCard
           icon={<TrendingDown size={16} />}
           label="Expirados"
@@ -102,18 +158,16 @@ export default function Dashboard() {
           accent={stats?.expired ? 'var(--color-nerv-danger)' : undefined}
           loading={statsLoading}
         />
+
+        {/* 5º — Lista de Compras */}
         <StatCard
           icon={<ShoppingCart size={16} />}
           label="Lista Compras"
           value="—"
           sub="itens pendentes"
         />
-        <StatCard
-          icon={<Refrigerator size={16} />}
-          label="Localizações"
-          value={locations?.length ?? 0}
-          sub="configuradas"
-        />
+
+        {/* 6º — Refeições Hoje */}
         <StatCard
           icon={<Clock size={16} />}
           label="Refeições Hoje"
@@ -131,7 +185,7 @@ export default function Dashboard() {
             <AlertTriangle size={14} style={{ color: 'var(--color-nerv-warning)' }} />
             A expirar em breve
           </h2>
-          {stats?.expiring_soon === 0 || !stats ? (
+          {!stats || stats.expiring_soon === 0 ? (
             <p className="text-sm" style={{ color: 'var(--color-nerv-muted)' }}>
               Nenhum alerta de validade — tudo em ordem!
             </p>
