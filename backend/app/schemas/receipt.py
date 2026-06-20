@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import date, datetime
 
 
-# --- Schemas existentes (sem alterações) ---
+# --- Schemas existentes ---
 
 class ParsedItemSchema(BaseModel):
     raw_text: str
@@ -47,7 +47,9 @@ class ReceiptItemConfirm(BaseModel):
 class ReceiptConfirmRequest(BaseModel):
     store_id: Optional[int] = None
     purchase_date: Optional[date] = None
-    items: list[ReceiptItemConfirm]
+    # U1-C: items agora opcional — None = novo fluxo (lê da BD)
+    # lista fornecida = fluxo antigo (retrocompatibilidade com Scanner.tsx atual)
+    items: Optional[list[ReceiptItemConfirm]] = None
 
 
 class ReceiptResponse(BaseModel):
@@ -64,10 +66,9 @@ class ReceiptResponse(BaseModel):
     created_at: datetime
 
 
-# --- Novos schemas U1-B ---
+# --- Schemas U1-B (sem alterações) ---
 
 class ReceiptItemResponse(BaseModel):
-    """Response para listar items de um talão (pending ou confirmed)."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -90,7 +91,6 @@ class ReceiptItemResponse(BaseModel):
 
 
 class ReceiptItemCreate(BaseModel):
-    """Criar item manual num talão pending."""
     parsed_name: str
     parsed_quantity: Optional[float] = 1.0
     unit_id: Optional[int] = None
@@ -101,7 +101,6 @@ class ReceiptItemCreate(BaseModel):
 
 
 class ReceiptItemUpdate(BaseModel):
-    """Atualizar campos de um item — usado pelo auto-save (pending) e edição de histórico (confirmed)."""
     parsed_name: Optional[str] = None
     parsed_quantity: Optional[float] = None
     unit_id: Optional[int] = None
@@ -115,6 +114,5 @@ class ReceiptItemUpdate(BaseModel):
 
 
 class ReceiptUpdate(BaseModel):
-    """Atualizar metadados de um talão (loja e data de compra)."""
     store_id: Optional[int] = None
     purchase_date: Optional[date] = None

@@ -20,7 +20,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 # ---------------------------------------------------------------------------
-# UPLOAD + OCR
+# UPLOAD + OCR  (U1-C: guarda items em pending na BD)
 # ---------------------------------------------------------------------------
 
 @router.post("/receipts/upload", response_model=ReceiptUploadResponse)
@@ -29,7 +29,7 @@ async def upload_receipt(
     store_id: Optional[int] = Form(default=None),
     db: Session = Depends(get_db),
 ):
-    """Faz upload de um talão, corre OCR e retorna os itens parseados para confirmação."""
+    """Faz upload de um talão, corre OCR, guarda items em pending e retorna para revisão."""
 
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/jpg"]:
         raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WebP.")
@@ -48,6 +48,7 @@ async def upload_receipt(
     parsed_items = parse_receipt_text(raw_text)
     detected_store = detect_store(raw_text)
 
+    # Criar registo do talão
     receipt = Receipt(
         store_id=store_id,
         image_path=image_path,
@@ -55,6 +56,26 @@ async def upload_receipt(
         status="pending",
     )
     db.add(receipt)
+    db.flush()  # obter receipt.id antes de criar os items
+
+    # U1-C: guardar todos os items parseados como ReceiptItems pending
+    for item in parsed_items:
+        receipt_item = ReceiptItem(
+            receipt_id=receipt.id,
+            raw_text=item.raw_text,
+            parsed_name=item.parsed_name,
+            parsed_quantity=item.parsed_quantity,
+            unit_guess=item.unit_guess,
+            original_price=item.original_price,
+            discount_amount=item.discount_amount,
+            effective_price=item.effective_price,
+            is_discount_line=item.is_discount_line,
+            confirmed=False,
+            add_to_inventory=not item.is_discount_line and item.parsed_name is not None,
+            is_manual=False,
+        )
+        db.add(receipt_item)
+
     db.commit()
     db.refresh(receipt)
 
@@ -70,7 +91,7 @@ async def upload_receipt(
 
 
 # ---------------------------------------------------------------------------
-# CONFIRMAR TALÃO
+# CONFIRMAR TALÃO  (U1-C: fluxo novo lê da BD; fluxo antigo usa body)
 # ---------------------------------------------------------------------------
 
 @router.post("/receipts/{receipt_id}/confirm", response_model=ReceiptResponse)
@@ -79,7 +100,11 @@ def confirm_receipt(
     data: ReceiptConfirmRequest,
     db: Session = Depends(get_db),
 ):
-    """Confirma os itens do talão e entra no inventário."""
+    """Confirma os itens do talão e entra no inventário.
+
+    Fluxo novo (U1-C): items já estão na BD → lê de lá, ignora body.
+    Fluxo antigo (retrocompat): items enviados no body → cria ReceiptItems e Inventory.
+    """
 
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
@@ -91,73 +116,138 @@ def confirm_receipt(
     total_amount = 0.0
     total_savings = 0.0
 
-    for item_data in data.items:
-        # Linhas de desconto: contabilizar poupança e saltar
-        if item_data.is_discount_line:
-            total_savings += item_data.discount_amount or 0
-            continue
+    # Verificar se existem items na BD (novo fluxo)
+    db_items = db.query(ReceiptItem).filter(
+        ReceiptItem.receipt_id == receipt_id
+    ).all()
 
-        # Linhas sem nome (rodapé OCR, texto não reconhecido): ignorar
-        if not item_data.parsed_name or not item_data.parsed_name.strip():
-            continue
+    if db_items:
+        # ── NOVO FLUXO: items já estão na BD (guardados no upload) ──
+        for item in db_items:
 
-        # Criar ou usar produto existente
-        product_id = item_data.product_id
-        if not product_id and item_data.parsed_name:
-            product = Product(
-                name=item_data.parsed_name,
-                consumption_type="partial",
+            if item.is_discount_line:
+                total_savings += item.discount_amount or 0
+                item.confirmed = True
+                continue
+
+            if not item.parsed_name or not item.parsed_name.strip():
+                item.confirmed = True
+                continue
+
+            # Resolver unidade
+            unit_id = item.parsed_unit_id
+            if not unit_id and item.unit_guess:
+                unit = db.query(Unit).filter(
+                    Unit.abbreviation == item.unit_guess
+                ).first()
+                if unit:
+                    unit_id = unit.id
+            if not unit_id:
+                unit = db.query(Unit).filter(Unit.abbreviation == "un").first()
+                unit_id = unit.id if unit else 1
+            item.parsed_unit_id = unit_id
+
+            # Criar produto se não existir
+            product_id = item.product_id
+            if not product_id:
+                product = Product(
+                    name=item.parsed_name,
+                    consumption_type="partial",
+                )
+                db.add(product)
+                db.flush()
+                product_id = product.id
+                item.product_id = product_id
+
+            total_amount += item.effective_price or item.original_price or 0
+
+            # Adicionar ao inventário se o utilizador não desmarcou
+            if item.add_to_inventory:
+                inv = Inventory(
+                    product_id=product_id,
+                    location_id=1,  # default — editável na página de inventário
+                    quantity=item.parsed_quantity or 1.0,
+                    unit_id=unit_id,
+                    purchase_date=data.purchase_date,
+                    purchase_price=item.effective_price,
+                    receipt_item_id=item.id,
+                )
+                db.add(inv)
+
+            item.confirmed = True
+
+    else:
+        # ── FLUXO ANTIGO: retrocompatibilidade com Scanner.tsx atual ──
+        if not data.items:
+            raise HTTPException(
+                status_code=400,
+                detail="Sem items para confirmar. Envie items no body ou faça upload primeiro."
             )
-            db.add(product)
-            db.flush()
-            product_id = product.id
 
-        # Determinar unidade
-        unit_id = item_data.unit_id
-        unit_guess = getattr(item_data, 'unit_guess', None)
-        if not unit_id and unit_guess:
-            unit = db.query(Unit).filter(Unit.abbreviation == unit_guess).first()
-            if unit:
-                unit_id = unit.id
-        if not unit_id:
-            unit = db.query(Unit).filter(Unit.abbreviation == "un").first()
-            unit_id = unit.id if unit else 1
+        for item_data in data.items:
+            if item_data.is_discount_line:
+                total_savings += item_data.discount_amount or 0
+                continue
 
-        # Guardar item do talão
-        receipt_item = ReceiptItem(
-            receipt_id=receipt_id,
-            raw_text=item_data.raw_text,
-            parsed_name=item_data.parsed_name,
-            parsed_quantity=item_data.parsed_quantity,
-            parsed_unit_id=unit_id,
-            original_price=item_data.original_price,
-            discount_amount=item_data.discount_amount,
-            discount_type=item_data.discount_type,
-            effective_price=item_data.effective_price or item_data.original_price,
-            product_id=product_id,
-            is_discount_line=False,
-            confirmed=item_data.confirmed,
-            add_to_inventory=item_data.add_to_inventory,
-        )
-        db.add(receipt_item)
-        db.flush()
+            if not item_data.parsed_name or not item_data.parsed_name.strip():
+                continue
 
-        total_amount += item_data.effective_price or item_data.original_price or 0
+            product_id = item_data.product_id
+            if not product_id:
+                product = Product(
+                    name=item_data.parsed_name,
+                    consumption_type="partial",
+                )
+                db.add(product)
+                db.flush()
+                product_id = product.id
 
-        # Adicionar ao inventário
-        if item_data.add_to_inventory and product_id and item_data.confirmed:
-            inv = Inventory(
+            unit_id = item_data.unit_id
+            unit_guess = getattr(item_data, 'unit_guess', None)
+            if not unit_id and unit_guess:
+                unit = db.query(Unit).filter(
+                    Unit.abbreviation == unit_guess
+                ).first()
+                if unit:
+                    unit_id = unit.id
+            if not unit_id:
+                unit = db.query(Unit).filter(Unit.abbreviation == "un").first()
+                unit_id = unit.id if unit else 1
+
+            receipt_item = ReceiptItem(
+                receipt_id=receipt_id,
+                raw_text=item_data.raw_text,
+                parsed_name=item_data.parsed_name,
+                parsed_quantity=item_data.parsed_quantity,
+                parsed_unit_id=unit_id,
+                original_price=item_data.original_price,
+                discount_amount=item_data.discount_amount,
+                discount_type=item_data.discount_type,
+                effective_price=item_data.effective_price or item_data.original_price,
                 product_id=product_id,
-                location_id=item_data.location_id or 1,
-                quantity=item_data.parsed_quantity or 1.0,
-                unit_id=unit_id,
-                expiry_date=item_data.expiry_date,
-                purchase_date=data.purchase_date,
-                purchase_price=item_data.effective_price,
-                receipt_item_id=receipt_item.id,
+                is_discount_line=False,
+                confirmed=item_data.confirmed,
+                add_to_inventory=item_data.add_to_inventory,
             )
-            db.add(inv)
+            db.add(receipt_item)
+            db.flush()
 
+            total_amount += item_data.effective_price or item_data.original_price or 0
+
+            if item_data.add_to_inventory and product_id and item_data.confirmed:
+                inv = Inventory(
+                    product_id=product_id,
+                    location_id=item_data.location_id or 1,
+                    quantity=item_data.parsed_quantity or 1.0,
+                    unit_id=unit_id,
+                    expiry_date=item_data.expiry_date,
+                    purchase_date=data.purchase_date,
+                    purchase_price=item_data.effective_price,
+                    receipt_item_id=receipt_item.id,
+                )
+                db.add(inv)
+
+    # Atualizar talão
     receipt.store_id = data.store_id or receipt.store_id
     receipt.purchase_date = data.purchase_date
     receipt.total_amount = round(total_amount, 2)
@@ -197,7 +287,6 @@ def update_receipt(
     data: ReceiptUpdate,
     db: Session = Depends(get_db),
 ):
-    """Atualiza metadados de um talão (loja e data de compra). Auto-save."""
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
@@ -217,18 +306,15 @@ def delete_receipt(
     receipt_id: int,
     db: Session = Depends(get_db),
 ):
-    """Apaga um talão e os seus itens. O stock NÃO é afetado — apenas o registo histórico é removido."""
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
 
-    # Preservar o stock: desligar a referência receipt_item_id nos
-    # itens de inventário antes de apagar o talão
     for item in receipt.items:
         for inv_entry in item.inventory_entries:
             inv_entry.receipt_item_id = None
 
-    db.delete(receipt)  # cascade elimina os ReceiptItems
+    db.delete(receipt)
     db.commit()
     return {"message": "Talão eliminado. Stock mantém-se inalterado."}
 
@@ -238,15 +324,10 @@ def delete_receipt(
 # ---------------------------------------------------------------------------
 
 @router.get("/receipts/{receipt_id}/items", response_model=list[ReceiptItemResponse])
-def get_receipt_items(
-    receipt_id: int,
-    db: Session = Depends(get_db),
-):
-    """Lista todos os items de um talão (pending ou confirmed)."""
+def get_receipt_items(receipt_id: int, db: Session = Depends(get_db)):
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
-
     return db.query(ReceiptItem).filter(
         ReceiptItem.receipt_id == receipt_id
     ).order_by(ReceiptItem.id.asc()).all()
@@ -258,12 +339,10 @@ def add_receipt_item(
     data: ReceiptItemCreate,
     db: Session = Depends(get_db),
 ):
-    """Adiciona um item manual a um talão pending."""
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
 
-    # Determinar unidade
     unit_id = data.unit_id
     if not unit_id and data.unit_guess:
         unit = db.query(Unit).filter(Unit.abbreviation == data.unit_guess).first()
@@ -300,7 +379,6 @@ def update_receipt_item(
     data: ReceiptItemUpdate,
     db: Session = Depends(get_db),
 ):
-    """Atualiza campos de um item. Usado pelo auto-save durante revisão (pending) e edição de histórico (confirmed)."""
     item = db.query(ReceiptItem).filter(
         ReceiptItem.id == item_id,
         ReceiptItem.receipt_id == receipt_id,
@@ -308,7 +386,6 @@ def update_receipt_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
-    # Atualizar apenas os campos enviados (PATCH semântico)
     if data.parsed_name is not None:
         item.parsed_name = data.parsed_name
     if data.parsed_quantity is not None:
@@ -341,7 +418,6 @@ def delete_receipt_item(
     item_id: int,
     db: Session = Depends(get_db),
 ):
-    """Remove um item de um talão. Não afeta o inventário."""
     item = db.query(ReceiptItem).filter(
         ReceiptItem.id == item_id,
         ReceiptItem.receipt_id == receipt_id,
@@ -349,7 +425,6 @@ def delete_receipt_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
-    # Desligar referência no inventário antes de apagar
     for inv_entry in item.inventory_entries:
         inv_entry.receipt_item_id = None
 
