@@ -172,8 +172,6 @@ function AddMealModal({ onClose }: { onClose: () => void }) {
 
 export default function Meals() {
   const [showAdd, setShowAdd] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
-
   const { data: mealTypes = [] } = useQuery<MealType[]>({
     queryKey: ['meal-types'],
     queryFn: () => mealTypesApi.getAll().then(r => r.data),

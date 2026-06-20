@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Package, Search, Filter, Plus, AlertTriangle, Clock, Trash2, CheckCircle, ScanLine } from 'lucide-react'
+import { Package, Search, Filter, Plus, Clock, Trash2, CheckCircle, ScanLine } from 'lucide-react'
 import { inventoryApi, configApi, productsApi } from '@/services/api'
 import BarcodeScanner from '@/components/scanner/BarcodeScanner'
 import type { InventoryItem } from '@/types'
