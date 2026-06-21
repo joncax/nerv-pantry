@@ -5,6 +5,7 @@ import { Clock, CheckCircle, FileText, ChevronRight, ScanLine } from 'lucide-rea
 import { receiptsApi, configApi, type Receipt } from '@/services/api'
 import ScanModal from '@/components/receipts/ScanModal'
 import ReceiptReview from '@/components/receipts/ReceiptReview'
+import ReceiptDetail from '@/components/receipts/ReceiptDetail'
 
 const MONTH_NAMES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -31,6 +32,7 @@ export default function Taloes() {
 
   const [scanModalOpen, setScanModalOpen] = useState(false)
   const [reviewReceiptId, setReviewReceiptId] = useState<number | null>(null)
+  const [detailReceiptId, setDetailReceiptId] = useState<number | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>('current')
   const [selectedStoreId, setSelectedStoreId] = useState<number | 'all'>('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -142,6 +144,18 @@ export default function Taloes() {
           />
         )}
 
+        {/* ReceiptDetail — detalhe de talão confirmed */}
+        {detailReceiptId && (
+          <ReceiptDetail
+            receiptId={detailReceiptId}
+            onClose={() => setDetailReceiptId(null)}
+            onDeleted={() => {
+              setDetailReceiptId(null)
+              queryClient.invalidateQueries({ queryKey: ['receipts'] })
+            }}
+          />
+        )}
+
         {/* ── PENDENTES ── */}
         {pending.length > 0 && (
           <div className="space-y-2">
@@ -235,7 +249,7 @@ export default function Taloes() {
                   key={r.id}
                   className="flex items-center justify-between px-4 py-3 cursor-pointer hover:opacity-80 transition-opacity"
                   style={rowStyle(i, paginatedConfirmed.length)}
-                  onClick={() => navigate(`/taloes/${r.id}`)}
+                  onClick={() => setDetailReceiptId(r.id)}
                 >
                   <div className="flex items-center gap-3">
                     <CheckCircle size={16} style={{ color: 'var(--color-nerv-success)', flexShrink: 0 }} />
