@@ -20,7 +20,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 # ---------------------------------------------------------------------------
-# UPLOAD + OCR  (U1-C: guarda items em pending na BD)
+# UPLOAD + OCR
 # ---------------------------------------------------------------------------
 
 @router.post("/receipts/upload", response_model=ReceiptUploadResponse)
@@ -29,8 +29,6 @@ async def upload_receipt(
     store_id: Optional[int] = Form(default=None),
     db: Session = Depends(get_db),
 ):
-    """Faz upload de um talão, corre OCR, guarda items em pending e retorna para revisão."""
-
     if file.content_type not in ["image/jpeg", "image/png", "image/webp", "image/jpg"]:
         raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WebP.")
 
@@ -48,7 +46,6 @@ async def upload_receipt(
     parsed_items = parse_receipt_text(raw_text)
     detected_store = detect_store(raw_text)
 
-    # Criar registo do talão
     receipt = Receipt(
         store_id=store_id,
         image_path=image_path,
@@ -56,9 +53,8 @@ async def upload_receipt(
         status="pending",
     )
     db.add(receipt)
-    db.flush()  # obter receipt.id antes de criar os items
+    db.flush()
 
-    # U1-C: guardar todos os items parseados como ReceiptItems pending
     for item in parsed_items:
         receipt_item = ReceiptItem(
             receipt_id=receipt.id,
@@ -91,7 +87,7 @@ async def upload_receipt(
 
 
 # ---------------------------------------------------------------------------
-# CONFIRMAR TALÃO  (U1-C: fluxo novo lê da BD; fluxo antigo usa body)
+# CONFIRMAR TALÃO
 # ---------------------------------------------------------------------------
 
 @router.post("/receipts/{receipt_id}/confirm", response_model=ReceiptResponse)
@@ -100,12 +96,6 @@ def confirm_receipt(
     data: ReceiptConfirmRequest,
     db: Session = Depends(get_db),
 ):
-    """Confirma os itens do talão e entra no inventário.
-
-    Fluxo novo (U1-C): items já estão na BD → lê de lá, ignora body.
-    Fluxo antigo (retrocompat): items enviados no body → cria ReceiptItems e Inventory.
-    """
-
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
@@ -116,15 +106,13 @@ def confirm_receipt(
     total_amount = 0.0
     total_savings = 0.0
 
-    # Verificar se existem items na BD (novo fluxo)
     db_items = db.query(ReceiptItem).filter(
         ReceiptItem.receipt_id == receipt_id
     ).all()
 
     if db_items:
-        # ── NOVO FLUXO: items já estão na BD (guardados no upload) ──
+        # ── NOVO FLUXO: items da BD (U1-C+) ──
         for item in db_items:
-
             if item.is_discount_line:
                 total_savings += item.discount_amount or 0
                 item.confirmed = True
@@ -134,12 +122,9 @@ def confirm_receipt(
                 item.confirmed = True
                 continue
 
-            # Resolver unidade
             unit_id = item.parsed_unit_id
             if not unit_id and item.unit_guess:
-                unit = db.query(Unit).filter(
-                    Unit.abbreviation == item.unit_guess
-                ).first()
+                unit = db.query(Unit).filter(Unit.abbreviation == item.unit_guess).first()
                 if unit:
                     unit_id = unit.id
             if not unit_id:
@@ -147,13 +132,9 @@ def confirm_receipt(
                 unit_id = unit.id if unit else 1
             item.parsed_unit_id = unit_id
 
-            # Criar produto se não existir
             product_id = item.product_id
             if not product_id:
-                product = Product(
-                    name=item.parsed_name,
-                    consumption_type="partial",
-                )
+                product = Product(name=item.parsed_name, consumption_type="partial")
                 db.add(product)
                 db.flush()
                 product_id = product.id
@@ -161,13 +142,13 @@ def confirm_receipt(
 
             total_amount += item.effective_price or item.original_price or 0
 
-            # Adicionar ao inventário se o utilizador não desmarcou
             if item.add_to_inventory:
                 inv = Inventory(
                     product_id=product_id,
-                    location_id=1,  # default — editável na página de inventário
+                    location_id=item.location_id or 1,  # U1-G: usa localização escolhida
                     quantity=item.parsed_quantity or 1.0,
                     unit_id=unit_id,
+                    expiry_date=item.expiry_date,         # U1-G: usa validade do item
                     purchase_date=data.purchase_date,
                     purchase_price=item.effective_price,
                     receipt_item_id=item.id,
@@ -177,27 +158,20 @@ def confirm_receipt(
             item.confirmed = True
 
     else:
-        # ── FLUXO ANTIGO: retrocompatibilidade com Scanner.tsx atual ──
+        # ── FLUXO ANTIGO: retrocompatibilidade ──
         if not data.items:
-            raise HTTPException(
-                status_code=400,
-                detail="Sem items para confirmar. Envie items no body ou faça upload primeiro."
-            )
+            raise HTTPException(status_code=400, detail="Sem items para confirmar.")
 
         for item_data in data.items:
             if item_data.is_discount_line:
                 total_savings += item_data.discount_amount or 0
                 continue
-
             if not item_data.parsed_name or not item_data.parsed_name.strip():
                 continue
 
             product_id = item_data.product_id
             if not product_id:
-                product = Product(
-                    name=item_data.parsed_name,
-                    consumption_type="partial",
-                )
+                product = Product(name=item_data.parsed_name, consumption_type="partial")
                 db.add(product)
                 db.flush()
                 product_id = product.id
@@ -205,9 +179,7 @@ def confirm_receipt(
             unit_id = item_data.unit_id
             unit_guess = getattr(item_data, 'unit_guess', None)
             if not unit_id and unit_guess:
-                unit = db.query(Unit).filter(
-                    Unit.abbreviation == unit_guess
-                ).first()
+                unit = db.query(Unit).filter(Unit.abbreviation == unit_guess).first()
                 if unit:
                     unit_id = unit.id
             if not unit_id:
@@ -247,7 +219,6 @@ def confirm_receipt(
                 )
                 db.add(inv)
 
-    # Atualizar talão
     receipt.store_id = data.store_id or receipt.store_id
     receipt.purchase_date = data.purchase_date
     receipt.total_amount = round(total_amount, 2)
@@ -278,49 +249,38 @@ def get_receipt(receipt_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-# U1-B: EDITAR / APAGAR TALÃO
+# EDITAR / APAGAR TALÃO
 # ---------------------------------------------------------------------------
 
 @router.put("/receipts/{receipt_id}", response_model=ReceiptResponse)
-def update_receipt(
-    receipt_id: int,
-    data: ReceiptUpdate,
-    db: Session = Depends(get_db),
-):
+def update_receipt(receipt_id: int, data: ReceiptUpdate, db: Session = Depends(get_db)):
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
-
     if data.store_id is not None:
         receipt.store_id = data.store_id
     if data.purchase_date is not None:
         receipt.purchase_date = data.purchase_date
-
     db.commit()
     db.refresh(receipt)
     return receipt
 
 
 @router.delete("/receipts/{receipt_id}")
-def delete_receipt(
-    receipt_id: int,
-    db: Session = Depends(get_db),
-):
+def delete_receipt(receipt_id: int, db: Session = Depends(get_db)):
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
-
     for item in receipt.items:
         for inv_entry in item.inventory_entries:
             inv_entry.receipt_item_id = None
-
     db.delete(receipt)
     db.commit()
     return {"message": "Talão eliminado. Stock mantém-se inalterado."}
 
 
 # ---------------------------------------------------------------------------
-# U1-B: ITEMS DO TALÃO — CRUD
+# ITEMS DO TALÃO — CRUD
 # ---------------------------------------------------------------------------
 
 @router.get("/receipts/{receipt_id}/items", response_model=list[ReceiptItemResponse])
@@ -334,11 +294,7 @@ def get_receipt_items(receipt_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/receipts/{receipt_id}/items", response_model=ReceiptItemResponse)
-def add_receipt_item(
-    receipt_id: int,
-    data: ReceiptItemCreate,
-    db: Session = Depends(get_db),
-):
+def add_receipt_item(receipt_id: int, data: ReceiptItemCreate, db: Session = Depends(get_db)):
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
@@ -365,6 +321,9 @@ def add_receipt_item(
         is_manual=True,
         confirmed=False,
         add_to_inventory=data.add_to_inventory,
+        location_id=data.location_id,
+        expiry_date=data.expiry_date,
+        barcode=data.barcode,
     )
     db.add(item)
     db.commit()
@@ -374,10 +333,7 @@ def add_receipt_item(
 
 @router.put("/receipts/{receipt_id}/items/{item_id}", response_model=ReceiptItemResponse)
 def update_receipt_item(
-    receipt_id: int,
-    item_id: int,
-    data: ReceiptItemUpdate,
-    db: Session = Depends(get_db),
+    receipt_id: int, item_id: int, data: ReceiptItemUpdate, db: Session = Depends(get_db)
 ):
     item = db.query(ReceiptItem).filter(
         ReceiptItem.id == item_id,
@@ -406,6 +362,13 @@ def update_receipt_item(
         item.add_to_inventory = data.add_to_inventory
     if data.confirmed is not None:
         item.confirmed = data.confirmed
+    # U1-G
+    if data.location_id is not None:
+        item.location_id = data.location_id
+    if data.expiry_date is not None:
+        item.expiry_date = data.expiry_date
+    if data.barcode is not None:
+        item.barcode = data.barcode
 
     db.commit()
     db.refresh(item)
@@ -413,21 +376,15 @@ def update_receipt_item(
 
 
 @router.delete("/receipts/{receipt_id}/items/{item_id}")
-def delete_receipt_item(
-    receipt_id: int,
-    item_id: int,
-    db: Session = Depends(get_db),
-):
+def delete_receipt_item(receipt_id: int, item_id: int, db: Session = Depends(get_db)):
     item = db.query(ReceiptItem).filter(
         ReceiptItem.id == item_id,
         ReceiptItem.receipt_id == receipt_id,
     ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado")
-
     for inv_entry in item.inventory_entries:
         inv_entry.receipt_item_id = None
-
     db.delete(item)
     db.commit()
     return {"message": "Item removido"}

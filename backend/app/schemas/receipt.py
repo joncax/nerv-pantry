@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import date, datetime
 
 
-# --- Schemas existentes ---
+# --- Schemas existentes (sem alterações) ---
 
 class ParsedItemSchema(BaseModel):
     raw_text: str
@@ -47,8 +47,6 @@ class ReceiptItemConfirm(BaseModel):
 class ReceiptConfirmRequest(BaseModel):
     store_id: Optional[int] = None
     purchase_date: Optional[date] = None
-    # U1-C: items agora opcional — None = novo fluxo (lê da BD)
-    # lista fornecida = fluxo antigo (retrocompatibilidade com Scanner.tsx atual)
     items: Optional[list[ReceiptItemConfirm]] = None
 
 
@@ -66,9 +64,10 @@ class ReceiptResponse(BaseModel):
     created_at: datetime
 
 
-# --- Schemas U1-B (sem alterações) ---
+# --- Schemas U1-B/G ---
 
 class ReceiptItemResponse(BaseModel):
+    """Response para listar items de um talão."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -87,10 +86,15 @@ class ReceiptItemResponse(BaseModel):
     confirmed: bool
     add_to_inventory: bool
     is_manual: bool
+    # U1-G
+    location_id: Optional[int] = None
+    expiry_date: Optional[date] = None
+    barcode: Optional[str] = None
     created_at: datetime
 
 
 class ReceiptItemCreate(BaseModel):
+    """Criar item manual num talão pending."""
     parsed_name: str
     parsed_quantity: Optional[float] = 1.0
     unit_id: Optional[int] = None
@@ -98,9 +102,14 @@ class ReceiptItemCreate(BaseModel):
     original_price: Optional[float] = None
     effective_price: Optional[float] = None
     add_to_inventory: bool = True
+    # U1-G
+    location_id: Optional[int] = None
+    expiry_date: Optional[date] = None
+    barcode: Optional[str] = None
 
 
 class ReceiptItemUpdate(BaseModel):
+    """Atualizar campos de um item — auto-save durante revisão (pending) e edição de histórico (confirmed)."""
     parsed_name: Optional[str] = None
     parsed_quantity: Optional[float] = None
     unit_id: Optional[int] = None
@@ -111,8 +120,13 @@ class ReceiptItemUpdate(BaseModel):
     effective_price: Optional[float] = None
     add_to_inventory: Optional[bool] = None
     confirmed: Optional[bool] = None
+    # U1-G
+    location_id: Optional[int] = None
+    expiry_date: Optional[date] = None
+    barcode: Optional[str] = None
 
 
 class ReceiptUpdate(BaseModel):
+    """Atualizar metadados de um talão (loja e data de compra)."""
     store_id: Optional[int] = None
     purchase_date: Optional[date] = None

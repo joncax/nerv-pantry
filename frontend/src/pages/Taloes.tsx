@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Clock, CheckCircle, FileText, ChevronRight, ScanLine } from 'lucide-react'
 import { receiptsApi, configApi, type Receipt } from '@/services/api'
 import ScanModal from '@/components/receipts/ScanModal'
+import ReceiptReview from '@/components/receipts/ReceiptReview'
 
 const MONTH_NAMES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -85,13 +86,9 @@ export default function Taloes() {
   }
 
   function handleConfirmNow(receiptId: number) {
-    // U1-G: aqui vai abrir o ReceiptReview (split view)
-    // Por agora: fechar o modal e mostrar o pending na lista
     setScanModalOpen(false)
     setReviewReceiptId(receiptId)
     queryClient.invalidateQueries({ queryKey: ['receipts'] })
-    // TODO U1-G: abrir split view para reviewReceiptId
-    console.log('Confirmar agora receipt:', receiptId)
   }
 
   function handleScanModalClose() {
@@ -133,13 +130,16 @@ export default function Taloes() {
           </button>
         </div>
 
-        {/* Nota U1-G temporária */}
+        {/* ReceiptReview — split view para confirmar pending */}
         {reviewReceiptId && (
-          <div className="px-4 py-3 rounded-lg border text-sm"
-            style={{ borderColor: 'var(--color-nerv-warning)', backgroundColor: 'rgba(210,153,34,0.08)', color: 'var(--color-nerv-warning)' }}>
-            Talão #{reviewReceiptId} pronto para confirmar — split view disponível em breve (U1-G).
-            <button className="ml-3 underline text-xs" onClick={() => setReviewReceiptId(null)}>fechar</button>
-          </div>
+          <ReceiptReview
+            receiptId={reviewReceiptId}
+            onClose={() => setReviewReceiptId(null)}
+            onConfirmed={() => {
+              setReviewReceiptId(null)
+              queryClient.invalidateQueries({ queryKey: ['receipts'] })
+            }}
+          />
         )}
 
         {/* ── PENDENTES ── */}
@@ -156,7 +156,7 @@ export default function Taloes() {
                   key={r.id}
                   className="flex items-center justify-between px-4 py-3 cursor-pointer hover:opacity-80 transition-opacity"
                   style={rowStyle(i, pending.length)}
-                  onClick={() => navigate(`/scanner?receipt=${r.id}`)}
+                  onClick={() => setReviewReceiptId(r.id)}
                 >
                   <div className="flex items-center gap-3">
                     <Clock size={16} style={{ color: 'var(--color-nerv-warning)', flexShrink: 0 }} />

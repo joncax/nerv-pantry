@@ -43,7 +43,6 @@ export const configApi = {
   getCategories: () => api.get<Category[]>('/categories'),
   createCategory: (data: Partial<Category>) => api.post<Category>('/categories', data),
   getUnits: () => api.get<Unit[]>('/units'),
-  getStores: () => api.get('/stores'),
 }
 
 // ─── Shopping ────────────────────────────────────────────────────
@@ -98,6 +97,10 @@ export interface ReceiptItem {
   confirmed: boolean
   add_to_inventory: boolean
   is_manual: boolean
+  // U1-G
+  location_id: number | null
+  expiry_date: string | null
+  barcode: string | null
   created_at: string
 }
 
@@ -133,14 +136,17 @@ export const receiptsApi = {
     add_to_inventory?: boolean
   }) => api.post<ReceiptItem>(`/receipts/${id}/items`, data),
   updateItem: (id: number, itemId: number, data: Partial<{
-    parsed_name: string
-    parsed_quantity: number
-    unit_id: number
-    unit_guess: string
-    original_price: number
-    effective_price: number
+    parsed_name: string | null
+    parsed_quantity: number | null
+    unit_id: number | null
+    unit_guess: string | null
+    original_price: number | null
+    effective_price: number | null
     add_to_inventory: boolean
     confirmed: boolean
+    location_id: number | null
+    expiry_date: string | null
+    barcode: string | null
   }>) => api.put<ReceiptItem>(`/receipts/${id}/items/${itemId}`, data),
   deleteItem: (id: number, itemId: number) =>
     api.delete(`/receipts/${id}/items/${itemId}`),
