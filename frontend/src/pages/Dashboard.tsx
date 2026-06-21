@@ -4,7 +4,7 @@ import {
   Package, AlertTriangle, ShoppingCart,
   TrendingDown, Clock, FileText, CheckCircle,
 } from 'lucide-react'
-import { healthApi, statsApi, configApi, receiptsApi, type Receipt } from '@/services/api'
+import { healthApi, statsApi, receiptsApi, type Receipt } from '@/services/api'
 
 interface StatCardProps {
   icon: React.ReactNode
