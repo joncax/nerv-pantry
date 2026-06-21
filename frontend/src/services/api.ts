@@ -43,6 +43,7 @@ export const configApi = {
   getCategories: () => api.get<Category[]>('/categories'),
   createCategory: (data: Partial<Category>) => api.post<Category>('/categories', data),
   getUnits: () => api.get<Unit[]>('/units'),
+  getStores: () => api.get('/stores'),
 }
 
 // ─── Shopping ────────────────────────────────────────────────────
