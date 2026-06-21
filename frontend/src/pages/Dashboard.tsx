@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
   Package, AlertTriangle, ShoppingCart,
-  TrendingDown, Refrigerator, Clock, FileText, CheckCircle,
+  TrendingDown, Clock, FileText, CheckCircle,
 } from 'lucide-react'
 import { healthApi, statsApi, configApi, receiptsApi, type Receipt } from '@/services/api'
 
@@ -66,11 +66,6 @@ export default function Dashboard() {
     queryKey: ['inventory-stats'],
     queryFn: () => statsApi.getInventory().then(r => r.data),
     refetchInterval: 60_000,
-  })
-
-  const { data: locations } = useQuery({
-    queryKey: ['locations'],
-    queryFn: () => configApi.getLocations().then(r => r.data),
   })
 
   const { data: receipts } = useQuery({

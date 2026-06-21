@@ -43,6 +43,7 @@ export const configApi = {
   getCategories: () => api.get<Category[]>('/categories'),
   createCategory: (data: Partial<Category>) => api.post<Category>('/categories', data),
   getUnits: () => api.get<Unit[]>('/units'),
+  getStores: () => api.get<{ id: number; name: string }[]>('/stores'),
 }
 
 // ─── Shopping ────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ export const receiptsApi = {
   getById: (id: number) => api.get<Receipt>(`/receipts/${id}`),
 
   // Confirmar talão (novo fluxo: sem items no body)
-  confirm: (id: number, data: { store_id?: number | null; purchase_date?: string | null }) =>
+  confirm: (id: number, data: { store_id?: number | null; purchase_date?: string | null; items?: unknown[] }) =>
     api.post<Receipt>(`/receipts/${id}/confirm`, data),
 
   // Editar e apagar talão (U1-B)
@@ -134,6 +135,9 @@ export const receiptsApi = {
     original_price?: number
     effective_price?: number
     add_to_inventory?: boolean
+    location_id?: number | null
+    expiry_date?: string | null
+    barcode?: string | null
   }) => api.post<ReceiptItem>(`/receipts/${id}/items`, data),
   updateItem: (id: number, itemId: number, data: Partial<{
     parsed_name: string | null

@@ -37,7 +37,7 @@ export default function ReceiptDetail({ receiptId, onClose, onDeleted }: Receipt
   const [storeId, setStoreId] = useState<number | null>(null)
   const [purchaseDate, setPurchaseDate] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
-  const metaTimer = useRef<ReturnType<typeof setTimeout>>()
+  const metaTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data: receipt, isLoading: receiptLoading } = useQuery({
     queryKey: ['receipt', receiptId],

@@ -12,8 +12,6 @@ interface ReceiptReviewProps {
   onConfirmed: () => void
 }
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error'
-
 // Construct image URL from stored path
 function getImageUrl(imagePath: string | null | undefined): string | null {
   if (!imagePath) return null
@@ -41,7 +39,7 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
   const [showAddForm, setShowAddForm] = useState(false)
   const [newItem, setNewItem] = useState({ name: '', qty: '1', price: '', barcode: '' })
   const [metaSaving, setMetaSaving] = useState(false)
-  const metaTimer = useRef<ReturnType<typeof setTimeout>>()
+  const metaTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Data queries
   const { data: receipt, isLoading: receiptLoading } = useQuery({

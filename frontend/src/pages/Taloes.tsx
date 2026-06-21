@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { Clock, CheckCircle, FileText, ChevronRight, ScanLine } from 'lucide-react'
 import { receiptsApi, configApi, type Receipt } from '@/services/api'
 import ScanModal from '@/components/receipts/ScanModal'
@@ -27,7 +26,6 @@ function formatDate(dateStr: string | null): string {
 const PAGE_SIZE = 20
 
 export default function Taloes() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [scanModalOpen, setScanModalOpen] = useState(false)

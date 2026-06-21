@@ -55,7 +55,7 @@ export default function Scanner() {
 
     try {
       const res = await receiptsApi.upload(form)
-      const data = res.data as UploadResult
+      const data = res.data as unknown as UploadResult
       setResult(data)
       setItems(data.items.map(item => ({
         ...item,
