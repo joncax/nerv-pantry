@@ -54,6 +54,10 @@ class StoreCreate(BaseModel):
     name: str
     parser_config: Optional[str] = None
 
+class StoreUpdate(BaseModel):
+    name: Optional[str] = None
+    parser_config: Optional[str] = None
+
 class StoreResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

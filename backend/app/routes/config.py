@@ -6,7 +6,7 @@ from app.schemas.config import (
     LocationCreate, LocationUpdate, LocationResponse,
     CategoryCreate, CategoryResponse,
     UnitCreate, UnitResponse,
-    StoreCreate, StoreResponse,
+    StoreCreate, StoreUpdate, StoreResponse,
     MealTypeCreate, MealTypeResponse,
 )
 
@@ -94,6 +94,25 @@ def create_store(data: StoreCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(store)
     return store
+
+@router.put("/stores/{id}", response_model=StoreResponse)
+def update_store(id: int, data: StoreUpdate, db: Session = Depends(get_db)):
+    store = db.query(Store).filter(Store.id == id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Loja não encontrada")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(store, field, value)
+    db.commit()
+    db.refresh(store)
+    return store
+
+@router.delete("/stores/{id}", status_code=204)
+def delete_store(id: int, db: Session = Depends(get_db)):
+    store = db.query(Store).filter(Store.id == id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Loja não encontrada")
+    db.delete(store)
+    db.commit()
 
 
 # ─── Meal Types ──────────────────────────────────────────────────

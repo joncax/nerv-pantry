@@ -35,6 +35,12 @@ export const productsApi = {
 }
 
 // ─── Config ──────────────────────────────────────────────────────
+export interface Store {
+  id: number
+  name: string
+  parser_config: string | null
+}
+
 export const configApi = {
   getLocations: () => api.get<Location[]>('/locations'),
   createLocation: (data: Partial<Location>) => api.post<Location>('/locations', data),
@@ -43,7 +49,10 @@ export const configApi = {
   getCategories: () => api.get<Category[]>('/categories'),
   createCategory: (data: Partial<Category>) => api.post<Category>('/categories', data),
   getUnits: () => api.get<Unit[]>('/units'),
-  getStores: () => api.get<{ id: number; name: string }[]>('/stores'),
+  getStores: () => api.get<Store[]>('/stores'),
+  createStore: (data: { name: string }) => api.post<Store>('/stores', data),
+  updateStore: (id: number, data: { name: string }) => api.put<Store>(`/stores/${id}`, data),
+  deleteStore: (id: number) => api.delete(`/stores/${id}`),
 }
 
 // ─── Shopping ────────────────────────────────────────────────────

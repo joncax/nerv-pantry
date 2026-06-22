@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.config import Location, Category, Unit, MealType
+from app.models.config import Location, Category, Unit, Store, MealType
 
 router = APIRouter()
 
@@ -9,7 +9,7 @@ router = APIRouter()
 @router.post("/seed", status_code=201)
 def seed_initial_data(db: Session = Depends(get_db)):
     """Popula a BD com dados iniciais. Seguro de correr múltiplas vezes."""
-    created = {"locations": 0, "categories": 0, "units": 0, "meal_types": 0}
+    created = {"locations": 0, "categories": 0, "units": 0, "stores": 0, "meal_types": 0}
 
     # ─── Localizações ────────────────────────────────────────────
     locations = [
@@ -61,6 +61,23 @@ def seed_initial_data(db: Session = Depends(get_db)):
             db.add(Unit(**unit))
             created["units"] += 1
 
+    # ─── Lojas ───────────────────────────────────────────────────
+    stores = [
+        {"name": "Lidl"},
+        {"name": "Continente"},
+        {"name": "Pingo Doce"},
+        {"name": "Aldi"},
+        {"name": "Intermarché"},
+        {"name": "Mercadona"},
+        {"name": "Minipreço"},
+        {"name": "Jumbo"},
+    ]
+    for store in stores:
+        exists = db.query(Store).filter(Store.name == store["name"]).first()
+        if not exists:
+            db.add(Store(**store))
+            created["stores"] += 1
+
     # ─── Tipos de refeição ───────────────────────────────────────
     meal_types = [
         {"name": "Pequeno-almoço", "default_time": "07:30", "icon": "🌅", "order": 1},
@@ -83,8 +100,9 @@ def seed_initial_data(db: Session = Depends(get_db)):
 def seed_status(db: Session = Depends(get_db)):
     """Verifica o estado dos dados iniciais."""
     return {
-        "locations": db.query(Location).count(),
+        "locations":  db.query(Location).count(),
         "categories": db.query(Category).count(),
-        "units": db.query(Unit).count(),
+        "units":      db.query(Unit).count(),
+        "stores":     db.query(Store).count(),
         "meal_types": db.query(MealType).count(),
     }
