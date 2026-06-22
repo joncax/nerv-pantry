@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -271,11 +272,22 @@ def delete_receipt(receipt_id: int, db: Session = Depends(get_db)):
     receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Talão não encontrado")
+
+    image_path = receipt.image_path
+
     for item in receipt.items:
         for inv_entry in item.inventory_entries:
             inv_entry.receipt_item_id = None
+
     db.delete(receipt)
     db.commit()
+
+    if image_path and os.path.exists(image_path):
+        try:
+            os.remove(image_path)
+        except OSError:
+            pass
+
     return {"message": "Talão eliminado. Stock mantém-se inalterado."}
 
 
@@ -373,18 +385,3 @@ def update_receipt_item(
     db.commit()
     db.refresh(item)
     return item
-
-
-@router.delete("/receipts/{receipt_id}/items/{item_id}")
-def delete_receipt_item(receipt_id: int, item_id: int, db: Session = Depends(get_db)):
-    item = db.query(ReceiptItem).filter(
-        ReceiptItem.id == item_id,
-        ReceiptItem.receipt_id == receipt_id,
-    ).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item não encontrado")
-    for inv_entry in item.inventory_entries:
-        inv_entry.receipt_item_id = None
-    db.delete(item)
-    db.commit()
-    return {"message": "Item removido"}

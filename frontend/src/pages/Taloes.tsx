@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clock, CheckCircle, FileText, ChevronRight, ScanLine } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Clock, CheckCircle, FileText, ChevronRight, ScanLine, Trash2, Check, X } from 'lucide-react'
 import { receiptsApi, configApi, type Receipt } from '@/services/api'
 import ScanModal from '@/components/receipts/ScanModal'
 import ReceiptReview from '@/components/receipts/ReceiptReview'
@@ -34,6 +34,8 @@ export default function Taloes() {
   const [selectedMonth, setSelectedMonth] = useState<string>('current')
   const [selectedStoreId, setSelectedStoreId] = useState<number | 'all'>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  // U3-B: id do talão pendente à espera de confirmação de apagar
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const { data: receipts = [], isLoading } = useQuery({
     queryKey: ['receipts'],
@@ -44,6 +46,15 @@ export default function Taloes() {
   const { data: stores = [] } = useQuery({
     queryKey: ['stores'],
     queryFn: () => configApi.getStores().then(r => r.data as { id: number; name: string }[]),
+  })
+
+  // U3-B: mutation de apagar talão pendente
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => receiptsApi.delete(id),
+    onSuccess: () => {
+      setDeletingId(null)
+      queryClient.invalidateQueries({ queryKey: ['receipts'] })
+    },
   })
 
   const pending = receipts.filter(r => r.status === 'pending')
@@ -166,13 +177,21 @@ export default function Taloes() {
               {pending.map((r, i) => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:opacity-80 transition-opacity"
-                  style={rowStyle(i, pending.length)}
-                  onClick={() => setReviewReceiptId(r.id)}
+                  className="flex items-center justify-between px-4 py-3 transition-opacity"
+                  style={{
+                    ...rowStyle(i, pending.length),
+                    cursor: deletingId === r.id ? 'default' : 'pointer',
+                    opacity: deleteMutation.isPending && deletingId === r.id ? 0.5 : 1,
+                  }}
+                  onClick={() => {
+                    if (deletingId === r.id) return
+                    setReviewReceiptId(r.id)
+                  }}
                 >
-                  <div className="flex items-center gap-3">
+                  {/* Info do talão */}
+                  <div className="flex items-center gap-3 min-w-0">
                     <Clock size={16} style={{ color: 'var(--color-nerv-warning)', flexShrink: 0 }} />
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>
                         {getStoreName(r.store_id)} · {formatDate(r.purchase_date ?? r.created_at)}
                       </p>
@@ -181,12 +200,52 @@ export default function Taloes() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ backgroundColor: 'rgba(210,153,34,0.15)', color: 'var(--color-nerv-warning)' }}>
-                      Pendente
-                    </span>
-                    <ChevronRight size={14} style={{ color: 'var(--color-nerv-muted)' }} />
+
+                  {/* Ações à direita */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {deletingId === r.id ? (
+                      // Estado de confirmação — dois botões
+                      <>
+                        <span className="text-xs mr-1" style={{ color: 'var(--color-nerv-muted)' }}>
+                          Apagar?
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteMutation.mutate(r.id) }}
+                          disabled={deleteMutation.isPending}
+                          className="flex items-center justify-center w-7 h-7 rounded transition-opacity hover:opacity-80"
+                          style={{ backgroundColor: 'rgba(248,81,73,0.15)', color: 'var(--color-nerv-danger)' }}
+                          title="Confirmar apagar"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); setDeletingId(null) }}
+                          disabled={deleteMutation.isPending}
+                          className="flex items-center justify-center w-7 h-7 rounded transition-opacity hover:opacity-80"
+                          style={{ backgroundColor: 'rgba(139,148,158,0.15)', color: 'var(--color-nerv-muted)' }}
+                          title="Cancelar"
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      // Estado normal — badge + botão lixo + chevron
+                      <>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ backgroundColor: 'rgba(210,153,34,0.15)', color: 'var(--color-nerv-warning)' }}>
+                          Pendente
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setDeletingId(r.id) }}
+                          className="flex items-center justify-center w-7 h-7 rounded transition-opacity hover:opacity-80"
+                          style={{ color: 'var(--color-nerv-muted)' }}
+                          title="Apagar talão"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <ChevronRight size={14} style={{ color: 'var(--color-nerv-muted)' }} />
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
