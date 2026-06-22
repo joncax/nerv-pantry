@@ -38,3 +38,6 @@ backend/uploads/
 Thumbs.db
 
 # Alembic
+
+# Folders
+.local/
