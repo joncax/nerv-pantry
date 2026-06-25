@@ -4,11 +4,12 @@ import { Package, Search, Filter, Plus, Clock, Trash2, CheckCircle, ScanLine, X,
 import { inventoryApi, configApi, productsApi } from '@/services/api'
 import BarcodeScanner from '@/components/scanner/BarcodeScanner'
 import { FilterPanel } from '@/components/inventory/FilterPanel'
+import { InventoryEditModal } from '@/components/inventory/InventoryEditModal'
 import { useInventoryFilters } from '@/hooks/useInventoryFilters'
 import { formatExpiry, EXPIRY_COLOR_MAP } from '@/utils/expiry'
 import type { InventoryItem } from '@/types'
 
-// ─── ExpiryBadge — usa dias em vez de datas brutas ───────────────
+// ─── ExpiryBadge ─────────────────────────────────────────────────
 
 function ExpiryBadge({ date }: { date?: string }) {
   const { label, color } = formatExpiry(date)
@@ -190,9 +191,10 @@ function AddProductModal({ onClose }: { onClose: () => void }) {
 
 // ─── InventoryRow ─────────────────────────────────────────────────
 
-function InventoryRow({ item, onConsume }: {
+function InventoryRow({ item, onConsume, onEdit }: {
   item: InventoryItem
   onConsume: (item: InventoryItem) => void
+  onEdit: (item: InventoryItem) => void  // U5-D
 }) {
   const { color } = formatExpiry(item.expiry_date)
   const qc = useQueryClient()
@@ -205,7 +207,6 @@ function InventoryRow({ item, onConsume }: {
     },
   })
 
-  // U5-C: toggle favorito com optimistic update
   const toggleFavoriteMutation = useMutation({
     mutationFn: () => inventoryApi.toggleFavorite(item.product_id),
     onMutate: async () => {
@@ -227,8 +228,8 @@ function InventoryRow({ item, onConsume }: {
   })
 
   const dotColor =
-    color === 'danger'  ? 'var(--color-nerv-danger)' :
-    color === 'warning' ? 'var(--color-nerv-warning)' :
+    color === 'danger'  ? 'var(--color-nerv-danger)'  :
+    color === 'warning' ? 'var(--color-nerv-warning)'  :
                           'var(--color-nerv-success)'
 
   return (
@@ -236,14 +237,15 @@ function InventoryRow({ item, onConsume }: {
       style={{
         borderColor: 'var(--color-nerv-border)',
         backgroundColor: color === 'danger' ? 'rgba(248,81,73,0.05)' : 'transparent',
+        cursor: 'pointer',
       }}>
 
-      {/* Ponto de estado de validade */}
+      {/* Ponto de validade */}
       <div className="w-1.5 h-1.5 rounded-full shrink-0"
         style={{ backgroundColor: dotColor }} />
 
-      {/* Info do produto */}
-      <div className="flex-1 min-w-0">
+      {/* Info — clicável para editar */}
+      <div className="flex-1 min-w-0" onClick={() => onEdit(item)}>
         <div className="text-sm font-medium truncate" style={{ color: 'var(--color-nerv-text)' }}>
           {item.product?.name ?? `Produto #${item.product_id}`}
         </div>
@@ -255,15 +257,15 @@ function InventoryRow({ item, onConsume }: {
         </div>
       </div>
 
-      {/* Quantidade */}
-      <div className="text-sm font-medium shrink-0" style={{ color: 'var(--color-nerv-text)' }}>
+      {/* Quantidade — clicável para editar */}
+      <div className="text-sm font-medium shrink-0" onClick={() => onEdit(item)}
+        style={{ color: 'var(--color-nerv-text)' }}>
         {item.quantity} {item.unit?.abbreviation ?? ''}
       </div>
 
-      {/* Ações — U5-C: estrela sempre renderizada, ações no hover */}
+      {/* Ações */}
       <div className="flex items-center gap-1">
-
-        {/* Estrela — U5-C */}
+        {/* Estrela */}
         <button
           onClick={(e) => { e.stopPropagation(); toggleFavoriteMutation.mutate() }}
           title={item.product_is_favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
@@ -272,20 +274,17 @@ function InventoryRow({ item, onConsume }: {
             item.product_is_favorite ? '' : 'opacity-0 group-hover:opacity-60'
           }`}
           style={{ color: item.product_is_favorite ? '#d29922' : 'var(--color-nerv-muted)' }}>
-          <Star
-            size={15}
-            fill={item.product_is_favorite ? '#d29922' : 'none'}
-          />
+          <Star size={15} fill={item.product_is_favorite ? '#d29922' : 'none'} />
         </button>
 
-        {/* Consumir + Eliminar — só no hover */}
+        {/* Consumir + Eliminar */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => onConsume(item)} title="Consumir"
+          <button onClick={(e) => { e.stopPropagation(); onConsume(item) }} title="Consumir"
             className="p-1 rounded hover:brightness-125"
             style={{ color: 'var(--color-nerv-success)' }}>
             <CheckCircle size={15} />
           </button>
-          <button onClick={() => deleteMutation.mutate()} title="Eliminar"
+          <button onClick={(e) => { e.stopPropagation(); deleteMutation.mutate() }} title="Eliminar"
             className="p-1 rounded hover:brightness-125"
             style={{ color: 'var(--color-nerv-danger)' }}>
             <Trash2 size={15} />
@@ -303,6 +302,7 @@ export default function Inventory() {
   const [showAdd, setShowAdd] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [consumeItem, setConsumeItem] = useState<InventoryItem | null>(null)
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null)  // U5-D
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['inventory'],
@@ -328,10 +328,8 @@ export default function Inventory() {
 
   const hasAnyFilter = activeFilterCount > 0 || search.length > 0
 
-  // Chips para filtros ativos
   const chips: { key: string; label: string; onRemove: () => void }[] = []
 
-  // U5-C — chip de favoritos
   if (filters.favoritesOnly) {
     chips.push({
       key: 'favorites',
@@ -339,7 +337,6 @@ export default function Inventory() {
       onRemove: () => setFilters({ ...filters, favoritesOnly: false }),
     })
   }
-
   if (filters.expiryStatus !== 'all') {
     const labels: Record<string, string> = {
       expired: 'Expirado', critical: '≤ 2 dias',
@@ -351,25 +348,20 @@ export default function Inventory() {
       onRemove: () => setFilters({ ...filters, expiryStatus: 'all' }),
     })
   }
-
   filters.locations.forEach(id => {
     const opt = filterOptions.locations.find(o => o.id === id)
     if (opt) chips.push({
-      key: `loc-${id}`,
-      label: opt.name,
+      key: `loc-${id}`, label: opt.name,
       onRemove: () => toggleArrayFilter('locations', id),
     })
   })
-
   filters.categories.forEach(id => {
     const opt = filterOptions.categories.find(o => o.id === id)
     if (opt) chips.push({
-      key: `cat-${id}`,
-      label: opt.name,
+      key: `cat-${id}`, label: opt.name,
       onRemove: () => toggleArrayFilter('categories', id),
     })
   })
-
   if (filters.purchasePeriod !== 'all') {
     const labels: Record<string, string> = {
       week: 'Esta semana', month: 'Este mês', quarter: 'Últimos 3 meses',
@@ -385,6 +377,8 @@ export default function Inventory() {
     <div className="space-y-4">
       {showAdd && <AddProductModal onClose={() => setShowAdd(false)} />}
       {consumeItem && <ConsumeModal item={consumeItem} onClose={() => setConsumeItem(null)} />}
+      {editItem && <InventoryEditModal item={editItem} onClose={() => setEditItem(null)} />}
+
       <FilterPanel
         isOpen={showFilterPanel}
         onClose={() => setShowFilterPanel(false)}
@@ -417,7 +411,7 @@ export default function Inventory() {
         </button>
       </div>
 
-      {/* Pesquisa + botão de filtros */}
+      {/* Pesquisa + filtros */}
       <div className="flex gap-2">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded border"
           style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
@@ -433,8 +427,7 @@ export default function Inventory() {
             </button>
           )}
         </div>
-        <button
-          onClick={() => setShowFilterPanel(true)}
+        <button onClick={() => setShowFilterPanel(true)}
           className="flex items-center gap-1.5 px-3 py-2 rounded border text-sm"
           style={{
             backgroundColor: activeFilterCount > 0 ? 'rgba(239,68,68,0.1)' : 'var(--color-nerv-surface)',
@@ -455,7 +448,7 @@ export default function Inventory() {
         </button>
       </div>
 
-      {/* Chips de filtros ativos */}
+      {/* Chips */}
       {chips.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           {chips.map(chip => (
@@ -504,7 +497,12 @@ export default function Inventory() {
           </div>
         ) : (
           displayItems.map(item =>
-            <InventoryRow key={item.id} item={item} onConsume={setConsumeItem} />
+            <InventoryRow
+              key={item.id}
+              item={item}
+              onConsume={setConsumeItem}
+              onEdit={setEditItem}
+            />
           )
         )}
       </div>
