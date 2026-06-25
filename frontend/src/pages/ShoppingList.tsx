@@ -2,30 +2,16 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ShoppingCart, Plus, Check, Trash2, Sparkles, Copy, RefreshCw } from 'lucide-react'
 import { shoppingListApi, productsApi, configApi } from '@/services/api'
-
-interface ShoppingItem {
-  id: number
-  product_id: number
-  quantity_needed: number
-  unit_id: number
-  priority: string
-  added_automatically: boolean
-  trigger_type?: string
-  estimated_price?: number
-  checked: boolean
-  completed: boolean
-}
-
-interface Product { id: number; name: string }
+import type { ShoppingListItem } from '@/types'
 
 function AddItemModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const [productSearch, setProductSearch] = useState('')
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string } | null>(null)
   const [qty, setQty] = useState(1)
   const [unitId, setUnitId] = useState(1)
 
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [] } = useQuery<{ id: number; name: string }[]>({
     queryKey: ['products', productSearch],
     queryFn: () => productsApi.getAll({ search: productSearch }).then(r => r.data),
     enabled: productSearch.length > 1,
@@ -116,9 +102,9 @@ export default function ShoppingList() {
   const [showAdd, setShowAdd] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const { data: items = [], isLoading } = useQuery<ShoppingItem[]>({
+  const { data: items = [], isLoading } = useQuery<ShoppingListItem[]>({
     queryKey: ['shopping'],
-    queryFn: () => shoppingListApi.getAll().then(r => r.data),
+    queryFn: () => shoppingListApi.getAll().then(r => [...r.data.auto, ...r.data.manual]),
   })
 
   const checkMutation = useMutation({
@@ -147,12 +133,13 @@ export default function ShoppingList() {
 
   const estimatedTotal = items
     .filter(i => i.estimated_price)
-    .reduce((sum, i) => sum + (i.estimated_price ?? 0) * i.quantity_needed, 0)
+    .reduce((sum, i) => sum + (i.estimated_price ?? 0) * (i.quantity_needed ?? 1), 0)
 
   function copyList() {
     const lines = ['🛒 Lista de Compras — nerv-pantry', '']
     pending.forEach(item => {
-      lines.push(`□ Produto #${item.product_id} × ${item.quantity_needed}`)
+      const label = item.name ?? item.product?.name ?? `Produto #${item.product_id}`
+      lines.push(`□ ${label} × ${item.quantity_needed ?? 1}`)
     })
     if (estimatedTotal > 0) lines.push(`\nEstimativa: ~€${estimatedTotal.toFixed(2)}`)
     navigator.clipboard.writeText(lines.join('\n'))
@@ -213,9 +200,7 @@ export default function ShoppingList() {
         <div className="rounded-lg border p-12 text-center"
           style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
           <ShoppingCart size={32} className="mx-auto mb-3" style={{ color: 'var(--color-nerv-border)' }} />
-          <p className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>
-            Lista vazia
-          </p>
+          <p className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>Lista vazia</p>
           <p className="text-xs mt-1 mb-4" style={{ color: 'var(--color-nerv-muted)' }}>
             Adiciona itens manualmente ou usa "Gerar" para criar automaticamente com base no stock.
           </p>
@@ -240,11 +225,11 @@ export default function ShoppingList() {
                     style={{ borderColor: 'var(--color-nerv-border)' }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate" style={{ color: 'var(--color-nerv-text)' }}>
-                      Produto #{item.product_id}
+                      {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>
-                        × {item.quantity_needed}
+                        × {item.quantity_needed ?? 1}
                       </span>
                       {item.added_automatically && (
                         <span className="text-xs px-1.5 py-0.5 rounded"
@@ -295,7 +280,7 @@ export default function ShoppingList() {
                     <Check size={11} color="white" />
                   </button>
                   <p className="flex-1 text-sm line-through" style={{ color: 'var(--color-nerv-muted)' }}>
-                    Produto #{item.product_id}
+                    {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
                   </p>
                 </div>
               ))}

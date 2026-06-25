@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { HealthResponse, InventoryItem, Product, Location, Category, Unit, ShoppingListItem } from '@/types'
+import type { HealthResponse, InventoryItem, Product, Location, Category, Unit, ShoppingListItem, ShoppingListGrouped } from '@/types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -19,9 +19,12 @@ export const inventoryApi = {
   getById: (id: number) => api.get<InventoryItem>(`/inventory/${id}`),
   create: (data: Partial<InventoryItem>) => api.post<InventoryItem>('/inventory', data),
   update: (id: number, data: Partial<InventoryItem>) => api.put<InventoryItem>(`/inventory/${id}`, data),
+  patch: (id: number, data: Partial<InventoryItem>) => api.patch<InventoryItem>(`/inventory/${id}`, data),
   consume: (id: number, quantity: number, type: 'used' | 'finished' | 'wasted') =>
     api.post(`/inventory/${id}/consume`, { quantity, type }),
   delete: (id: number) => api.delete(`/inventory/${id}`),
+  // U5-C: toggle favorito (atua sobre o Produto, mas exposto aqui por contexto de uso)
+  toggleFavorite: (productId: number) => api.patch<Product>(`/products/${productId}/favorite`),
 }
 
 // ─── Products ────────────────────────────────────────────────────
@@ -32,6 +35,7 @@ export const productsApi = {
   getByBarcode: (barcode: string) => api.get<Product>(`/products/barcode/${barcode}`),
   create: (data: Partial<Product>) => api.post<Product>('/products', data),
   update: (id: number, data: Partial<Product>) => api.put<Product>(`/products/${id}`, data),
+  patch: (id: number, data: Partial<Product>) => api.patch<Product>(`/products/${id}`, data),
 }
 
 // ─── Config ──────────────────────────────────────────────────────
@@ -57,10 +61,9 @@ export const configApi = {
 
 // ─── Shopping ────────────────────────────────────────────────────
 export const shoppingApi = {
-  getList: () => api.get<ShoppingListItem[]>('/shopping'),
+  getList: () => api.get<ShoppingListGrouped>('/shopping'),
   addItem: (data: Partial<ShoppingListItem>) => api.post<ShoppingListItem>('/shopping', data),
-  checkItem: (id: number, checked: boolean) => api.patch(`/shopping/${id}`, { checked }),
-  completeItem: (id: number) => api.patch(`/shopping/${id}/complete`),
+  patchItem: (id: number, data: Partial<ShoppingListItem>) => api.patch<ShoppingListItem>(`/shopping/${id}`, data),
   deleteItem: (id: number) => api.delete(`/shopping/${id}`),
 }
 
@@ -107,7 +110,6 @@ export interface ReceiptItem {
   confirmed: boolean
   add_to_inventory: boolean
   is_manual: boolean
-  // U1-G
   location_id: number | null
   expiry_date: string | null
   barcode: string | null
@@ -115,26 +117,17 @@ export interface ReceiptItem {
 }
 
 export const receiptsApi = {
-  // Upload + OCR
   upload: (formData: FormData) => api.post<Receipt>('/receipts/upload', formData, {
     headers: { 'Content-Type': undefined },
     timeout: 60000,
   }),
-
-  // Listar e obter talões
   getAll: () => api.get<Receipt[]>('/receipts'),
   getById: (id: number) => api.get<Receipt>(`/receipts/${id}`),
-
-  // Confirmar talão (novo fluxo: sem items no body)
   confirm: (id: number, data: { store_id?: number | null; purchase_date?: string | null; items?: unknown[] }) =>
     api.post<Receipt>(`/receipts/${id}/confirm`, data),
-
-  // Editar e apagar talão (U1-B)
   update: (id: number, data: { store_id?: number | null; purchase_date?: string | null }) =>
     api.put<Receipt>(`/receipts/${id}`, data),
   delete: (id: number) => api.delete(`/receipts/${id}`),
-
-  // Items do talão (U1-B)
   getItems: (id: number) => api.get<ReceiptItem[]>(`/receipts/${id}/items`),
   addItem: (id: number, data: {
     parsed_name: string
@@ -184,9 +177,9 @@ export const mealTypesApi = {
 
 // ─── Shopping List ────────────────────────────────────────────────
 export const shoppingListApi = {
-  getAll: () => api.get('/shopping'),
-  add: (data: object) => api.post('/shopping', data),
-  patch: (id: number, data: object) => api.patch(`/shopping/${id}`, data),
+  getAll: () => api.get<ShoppingListGrouped>('/shopping'),
+  add: (data: object) => api.post<ShoppingListItem>('/shopping', data),
+  patch: (id: number, data: object) => api.patch<ShoppingListItem>(`/shopping/${id}`, data),
   delete: (id: number) => api.delete(`/shopping/${id}`),
   clearCompleted: () => api.delete('/shopping/completed/clear'),
   generate: () => api.post('/shopping/generate'),

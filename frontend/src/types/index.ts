@@ -51,6 +51,8 @@ export interface Product {
   perishable_days?: number
   alert_days_before: number
   min_stock_quantity?: number
+  // U5-A
+  is_favorite: boolean
   created_at: string
 }
 
@@ -68,6 +70,8 @@ export interface InventoryItem {
   purchase_date?: string
   purchase_price?: number
   notes?: string
+  // U5-A
+  product_is_favorite: boolean
   created_at: string
 }
 
@@ -128,17 +132,26 @@ export interface MealItem {
 // ─── Shopping ────────────────────────────────────────────────────
 export interface ShoppingListItem {
   id: number
-  product_id: number
+  product_id?: number | null
   product?: Product
-  quantity_needed: number
-  unit_id: number
+  name?: string | null
+  quantity_needed?: number | null
+  unit_id?: number | null
   unit?: Unit
   priority: 'high' | 'medium' | 'low'
   added_automatically: boolean
-  trigger_type?: string
-  estimated_price?: number
+  trigger_type?: string | null
+  estimated_price?: number | null
   checked: boolean
   completed: boolean
+  completed_at?: string | null
+  created_at: string
+}
+
+// U5-B: resposta agrupada do GET /shopping
+export interface ShoppingListGrouped {
+  auto: ShoppingListItem[]
+  manual: ShoppingListItem[]
 }
 
 // ─── API ─────────────────────────────────────────────────────────

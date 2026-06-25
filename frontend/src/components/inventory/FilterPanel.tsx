@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { X, ArrowUp, ArrowDown, Check } from 'lucide-react'
+import { X, ArrowUp, ArrowDown, Check, Star } from 'lucide-react'
 import type {
   FilterState,
   FilterOptions,
@@ -9,8 +9,6 @@ import type {
   ExpiryFilterValue,
   PurchasePeriod,
 } from '@/types/filters'
-
-// ─── Configuração estática ────────────────────────────────────────
 
 const SORT_OPTIONS: { field: SortField; label: string }[] = [
   { field: 'name',          label: 'Nome' },
@@ -22,11 +20,11 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
 ]
 
 const EXPIRY_OPTIONS: { value: ExpiryFilterValue; label: string; color: string }[] = [
-  { value: 'expired',  label: 'Expirado',  color: 'var(--color-nerv-danger)' },
-  { value: 'critical', label: '≤ 2 dias',  color: 'var(--color-nerv-danger)' },
-  { value: 'warning',  label: '≤ 7 dias',  color: 'var(--color-nerv-warning)' },
-  { value: 'ok',       label: '> 7 dias',  color: 'var(--color-nerv-success)' },
-  { value: 'none',     label: 'Sem data',  color: 'var(--color-nerv-muted)' },
+  { value: 'expired',  label: 'Expirado', color: 'var(--color-nerv-danger)' },
+  { value: 'critical', label: '≤ 2 dias', color: 'var(--color-nerv-danger)' },
+  { value: 'warning',  label: '≤ 7 dias', color: 'var(--color-nerv-warning)' },
+  { value: 'ok',       label: '> 7 dias', color: 'var(--color-nerv-success)' },
+  { value: 'none',     label: 'Sem data', color: 'var(--color-nerv-muted)' },
 ]
 
 const PERIOD_OPTIONS: { value: PurchasePeriod; label: string }[] = [
@@ -34,8 +32,6 @@ const PERIOD_OPTIONS: { value: PurchasePeriod; label: string }[] = [
   { value: 'month',   label: 'Este mês' },
   { value: 'quarter', label: 'Últimos 3 meses' },
 ]
-
-// ─── Props ────────────────────────────────────────────────────────
 
 interface FilterPanelProps {
   isOpen: boolean
@@ -49,8 +45,6 @@ interface FilterPanelProps {
   onClearAllFilters: () => void
   onToggleSort: (field: SortField) => void
 }
-
-// ─── Componente principal ─────────────────────────────────────────
 
 export function FilterPanel({
   isOpen,
@@ -66,7 +60,6 @@ export function FilterPanel({
 }: FilterPanelProps) {
   const [isMobile, setIsMobile] = useState(false)
 
-  // Detetar mobile para alternar entre drawer (desktop) e bottom sheet (mobile)
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
@@ -74,7 +67,6 @@ export function FilterPanel({
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Fechar com Escape
   useEffect(() => {
     if (!isOpen) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -101,59 +93,42 @@ export function FilterPanel({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-      {/* Backdrop */}
       <div
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
         onClick={onClose}
       />
-
-      {/* Painel */}
-      <div
-        style={{
-          ...panelStyle,
-          background: 'var(--color-nerv-surface)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          zIndex: 1,
-        }}
-      >
+      <div style={{
+        ...panelStyle,
+        background: 'var(--color-nerv-surface)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        zIndex: 1,
+      }}>
         {/* Cabeçalho */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 16px',
-            borderBottom: '1px solid var(--color-nerv-border)',
-            flexShrink: 0,
-          }}
-        >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--color-nerv-border)',
+          flexShrink: 0,
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: 'var(--color-nerv-text)', fontWeight: 500 }}>
-              Filtros
-            </span>
+            <span style={{ color: 'var(--color-nerv-text)', fontWeight: 500 }}>Filtros</span>
             {activeFilterCount > 0 && (
-              <span
-                style={{
-                  background: 'var(--color-nerv-accent)',
-                  color: '#fff',
-                  fontSize: '11px',
-                  fontWeight: 500,
-                  padding: '1px 7px',
-                  borderRadius: '20px',
-                }}
-              >
+              <span style={{
+                background: 'var(--color-nerv-accent)', color: '#fff',
+                fontSize: '11px', fontWeight: 500, padding: '1px 7px', borderRadius: '20px',
+              }}>
                 {activeFilterCount}
               </span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {activeFilterCount > 0 && (
-              <button
-                onClick={onClearAllFilters}
-                style={{ color: 'var(--color-nerv-accent)', fontSize: '13px' }}
-              >
+              <button onClick={onClearAllFilters}
+                style={{ color: 'var(--color-nerv-accent)', fontSize: '13px' }}>
                 Limpar tudo
               </button>
             )}
@@ -163,7 +138,7 @@ export function FilterPanel({
           </div>
         </div>
 
-        {/* Corpo com scroll */}
+        {/* Corpo */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
 
           {/* Ordenar por */}
@@ -172,22 +147,15 @@ export function FilterPanel({
               {SORT_OPTIONS.map(opt => {
                 const isActive = sort.field === opt.field
                 return (
-                  <button
-                    key={opt.field}
-                    onClick={() => onToggleSort(opt.field)}
+                  <button key={opt.field} onClick={() => onToggleSort(opt.field)}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '7px 10px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '7px 10px', borderRadius: '6px', fontSize: '12px',
                       background: isActive ? 'var(--color-nerv-border)' : 'var(--color-nerv-bg)',
                       color: isActive ? 'var(--color-nerv-text)' : 'var(--color-nerv-muted)',
                       border: `1px solid ${isActive ? 'var(--color-nerv-accent)' : 'var(--color-nerv-border)'}`,
                       cursor: 'pointer',
-                    }}
-                  >
+                    }}>
                     {opt.label}
                     {isActive && (
                       sort.direction === 'asc'
@@ -200,6 +168,28 @@ export function FilterPanel({
             </div>
           </FilterSection>
 
+          {/* U5-C — Favoritos */}
+          <FilterSection
+            title="Favoritos"
+            hasActiveFilter={filters.favoritesOnly}
+            onClear={() => onSetFilters({ ...filters, favoritesOnly: false })}
+          >
+            <button
+              onClick={() => onSetFilters({ ...filters, favoritesOnly: !filters.favoritesOnly })}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                width: '100%', padding: '7px 10px', borderRadius: '6px', fontSize: '12px',
+                background: filters.favoritesOnly ? 'var(--color-nerv-border)' : 'var(--color-nerv-bg)',
+                color: filters.favoritesOnly ? '#d29922' : 'var(--color-nerv-muted)',
+                border: `1px solid ${filters.favoritesOnly ? '#d29922' : 'var(--color-nerv-border)'}`,
+                cursor: 'pointer',
+              }}>
+              <Star size={13} fill={filters.favoritesOnly ? '#d29922' : 'none'}
+                style={{ color: '#d29922', flexShrink: 0 }} />
+              Mostrar só favoritos
+            </button>
+          </FilterSection>
+
           {/* Prazo de validade */}
           <FilterSection
             title="Prazo de validade"
@@ -210,21 +200,15 @@ export function FilterPanel({
               {EXPIRY_OPTIONS.map(opt => {
                 const isActive = filters.expiryStatus === opt.value
                 return (
-                  <button
-                    key={opt.value}
-                    onClick={() =>
-                      onSetFilters({ ...filters, expiryStatus: isActive ? 'all' : opt.value })
-                    }
+                  <button key={opt.value}
+                    onClick={() => onSetFilters({ ...filters, expiryStatus: isActive ? 'all' : opt.value })}
                     style={{
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px',
                       background: isActive ? 'var(--color-nerv-border)' : 'var(--color-nerv-bg)',
                       color: isActive ? opt.color : 'var(--color-nerv-muted)',
                       border: `1px solid ${isActive ? opt.color : 'var(--color-nerv-border)'}`,
                       cursor: 'pointer',
-                    }}
-                  >
+                    }}>
                     {opt.label}
                   </button>
                 )
@@ -241,13 +225,9 @@ export function FilterPanel({
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {filterOptions.locations.map(opt => (
-                  <CheckboxRow
-                    key={opt.id}
-                    label={opt.name}
-                    count={opt.count}
+                  <CheckboxRow key={opt.id} label={opt.name} count={opt.count}
                     checked={filters.locations.includes(opt.id)}
-                    onChange={() => onToggleArrayFilter('locations', opt.id)}
-                  />
+                    onChange={() => onToggleArrayFilter('locations', opt.id)} />
                 ))}
               </div>
             </FilterSection>
@@ -262,13 +242,9 @@ export function FilterPanel({
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {filterOptions.categories.map(opt => (
-                  <CheckboxRow
-                    key={opt.id}
-                    label={opt.name}
-                    count={opt.count}
+                  <CheckboxRow key={opt.id} label={opt.name} count={opt.count}
                     checked={filters.categories.includes(opt.id)}
-                    onChange={() => onToggleArrayFilter('categories', opt.id)}
-                  />
+                    onChange={() => onToggleArrayFilter('categories', opt.id)} />
                 ))}
               </div>
             </FilterSection>
@@ -284,21 +260,15 @@ export function FilterPanel({
               {PERIOD_OPTIONS.map(opt => {
                 const isActive = filters.purchasePeriod === opt.value
                 return (
-                  <button
-                    key={opt.value}
-                    onClick={() =>
-                      onSetFilters({ ...filters, purchasePeriod: isActive ? 'all' : opt.value })
-                    }
+                  <button key={opt.value}
+                    onClick={() => onSetFilters({ ...filters, purchasePeriod: isActive ? 'all' : opt.value })}
                     style={{
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
+                      padding: '5px 12px', borderRadius: '6px', fontSize: '12px',
                       background: isActive ? 'var(--color-nerv-border)' : 'var(--color-nerv-bg)',
                       color: isActive ? 'var(--color-nerv-text)' : 'var(--color-nerv-muted)',
                       border: `1px solid ${isActive ? 'var(--color-nerv-accent)' : 'var(--color-nerv-border)'}`,
                       cursor: 'pointer',
-                    }}
-                  >
+                    }}>
                     {opt.label}
                   </button>
                 )
@@ -312,36 +282,22 @@ export function FilterPanel({
   )
 }
 
-// ─── Sub-componentes ──────────────────────────────────────────────
-
-function FilterSection({
-  title,
-  children,
-  hasActiveFilter,
-  onClear,
-}: {
-  title: string
-  children: ReactNode
-  hasActiveFilter?: boolean
-  onClear?: () => void
+function FilterSection({ title, children, hasActiveFilter, onClear }: {
+  title: string; children: ReactNode; hasActiveFilter?: boolean; onClear?: () => void
 }) {
   return (
     <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-nerv-border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
         <span style={{
-          fontSize: '11px',
-          fontWeight: 500,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
+          fontSize: '11px', fontWeight: 500,
+          textTransform: 'uppercase', letterSpacing: '0.06em',
           color: 'var(--color-nerv-muted)',
         }}>
           {title}
         </span>
         {hasActiveFilter && onClear && (
-          <button
-            onClick={onClear}
-            style={{ fontSize: '12px', color: 'var(--color-nerv-accent)', cursor: 'pointer' }}
-          >
+          <button onClick={onClear}
+            style={{ fontSize: '12px', color: 'var(--color-nerv-accent)', cursor: 'pointer' }}>
             Limpar
           </button>
         )}
@@ -351,52 +307,31 @@ function FilterSection({
   )
 }
 
-function CheckboxRow({
-  label,
-  count,
-  checked,
-  onChange,
-}: {
-  label: string
-  count: number
-  checked: boolean
-  onChange: () => void
+function CheckboxRow({ label, count, checked, onChange }: {
+  label: string; count: number; checked: boolean; onChange: () => void
 }) {
   return (
-    <button
-      onClick={onChange}
+    <button onClick={onChange}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        padding: '7px 8px',
-        borderRadius: '6px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', padding: '7px 8px', borderRadius: '6px',
         background: checked ? 'var(--color-nerv-border)' : 'transparent',
-        cursor: 'pointer',
-        border: 'none',
-      }}
-    >
+        cursor: 'pointer', border: 'none',
+      }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <div style={{
-          width: '16px', height: '16px', flexShrink: 0,
-          borderRadius: '4px',
+          width: '16px', height: '16px', flexShrink: 0, borderRadius: '4px',
           border: `1px solid ${checked ? 'var(--color-nerv-accent)' : 'var(--color-nerv-border)'}`,
           background: checked ? 'var(--color-nerv-accent)' : 'transparent',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {checked && <Check size={10} style={{ color: '#fff' }} />}
         </div>
-        <span style={{
-          fontSize: '13px',
-          color: checked ? 'var(--color-nerv-text)' : 'var(--color-nerv-muted)',
-        }}>
+        <span style={{ fontSize: '13px', color: checked ? 'var(--color-nerv-text)' : 'var(--color-nerv-muted)' }}>
           {label}
         </span>
       </div>
-      <span style={{ fontSize: '11px', color: 'var(--color-nerv-muted)' }}>
-        {count}
-      </span>
+      <span style={{ fontSize: '11px', color: 'var(--color-nerv-muted)' }}>{count}</span>
     </button>
   )
 }
