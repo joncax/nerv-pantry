@@ -15,6 +15,7 @@ from app.schemas.inventory import (
     InventoryStats,
     InventoryUpdate,
 )
+from app.services.favorites_service import check_and_add_to_shopping
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
@@ -31,7 +32,6 @@ async def get_stats(db: Session = Depends(get_db)):
         .filter(Inventory.quantity > 0)
         .scalar() or 0
     )
-
     expiring_soon = (
         db.query(func.count(Inventory.id))
         .filter(
@@ -42,7 +42,6 @@ async def get_stats(db: Session = Depends(get_db)):
         )
         .scalar() or 0
     )
-
     expired = (
         db.query(func.count(Inventory.id))
         .filter(
@@ -64,23 +63,19 @@ async def list_inventory(
     expiring_soon: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):
-    # U5-A: joinedload para que product_is_favorite seja acessível via @property
     query = (
         db.query(Inventory)
         .options(joinedload(Inventory.product))
         .filter(Inventory.quantity > 0)
     )
-
     if location_id:
         query = query.filter(Inventory.location_id == location_id)
-
     if expiring_soon:
         warning_date = date.today() + timedelta(days=7)
         query = query.filter(
             Inventory.expiry_date.isnot(None),
             Inventory.expiry_date <= warning_date,
         )
-
     return query.order_by(Inventory.expiry_date.asc().nulls_last()).all()
 
 
@@ -102,7 +97,6 @@ async def create_inventory_item(data: InventoryCreate, db: Session = Depends(get
     item = Inventory(**data.model_dump())
     db.add(item)
     db.commit()
-    # Recarregar com joinedload para incluir product_is_favorite
     return (
         db.query(Inventory)
         .options(joinedload(Inventory.product))
@@ -118,10 +112,27 @@ async def update_inventory_item(
     item = db.get(Inventory, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado")
-
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
+    db.commit()
+    return (
+        db.query(Inventory)
+        .options(joinedload(Inventory.product))
+        .filter(Inventory.id == item_id)
+        .first()
+    )
 
+
+# U5-B: PATCH para edição parcial (usado no modal de edição U5-D)
+@router.patch("/{item_id}", response_model=InventoryResponse)
+async def patch_inventory_item(
+    item_id: int, data: InventoryUpdate, db: Session = Depends(get_db)
+):
+    item = db.get(Inventory, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
     db.commit()
     return (
         db.query(Inventory)
@@ -155,6 +166,9 @@ async def consume_inventory(
     )
     db.add(log)
     db.commit()
+
+    # U5-B: auto-adicionar à lista de compras se favorito abaixo do mínimo
+    check_and_add_to_shopping(item.product_id, db)
 
     return {"success": True, "remaining_quantity": item.quantity}
 

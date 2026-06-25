@@ -10,6 +10,7 @@ from app.models.product import Product
 from app.models.config import Unit
 from app.services.ocr_service import extract_text, save_image
 from app.services.parser_service import parse_receipt_text, detect_store
+from app.services.favorites_service import check_and_remove_from_shopping  # U5-B
 from app.schemas.receipt import (
     ReceiptUploadResponse, ReceiptConfirmRequest, ReceiptResponse, ParsedItemSchema,
     ReceiptItemResponse, ReceiptItemCreate, ReceiptItemUpdate, ReceiptUpdate,
@@ -106,6 +107,7 @@ def confirm_receipt(
 
     total_amount = 0.0
     total_savings = 0.0
+    restocked_product_ids: list[int] = []  # U5-B: recolher ids para auto-remover da lista
 
     db_items = db.query(ReceiptItem).filter(
         ReceiptItem.receipt_id == receipt_id
@@ -146,15 +148,16 @@ def confirm_receipt(
             if item.add_to_inventory:
                 inv = Inventory(
                     product_id=product_id,
-                    location_id=item.location_id or 1,  # U1-G: usa localização escolhida
+                    location_id=item.location_id or 1,
                     quantity=item.parsed_quantity or 1.0,
                     unit_id=unit_id,
-                    expiry_date=item.expiry_date,         # U1-G: usa validade do item
+                    expiry_date=item.expiry_date,
                     purchase_date=data.purchase_date,
                     purchase_price=item.effective_price,
                     receipt_item_id=item.id,
                 )
                 db.add(inv)
+                restocked_product_ids.append(product_id)  # U5-B
 
             item.confirmed = True
 
@@ -219,6 +222,7 @@ def confirm_receipt(
                     receipt_item_id=receipt_item.id,
                 )
                 db.add(inv)
+                restocked_product_ids.append(product_id)  # U5-B
 
     receipt.store_id = data.store_id or receipt.store_id
     receipt.purchase_date = data.purchase_date
@@ -228,6 +232,11 @@ def confirm_receipt(
     receipt.processed_at = datetime.utcnow()
 
     db.commit()
+
+    # U5-B: após commit, auto-remover da lista os produtos restockados
+    for product_id in restocked_product_ids:
+        check_and_remove_from_shopping(product_id, db)
+
     db.refresh(receipt)
     return receipt
 
@@ -374,7 +383,6 @@ def update_receipt_item(
         item.add_to_inventory = data.add_to_inventory
     if data.confirmed is not None:
         item.confirmed = data.confirmed
-    # U1-G
     if data.location_id is not None:
         item.location_id = data.location_id
     if data.expiry_date is not None:
