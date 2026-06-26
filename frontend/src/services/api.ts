@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { HealthResponse, InventoryItem, Product, Location, Category, Unit, ShoppingListItem, ShoppingListGrouped } from '@/types'
+import type { HealthResponse, InventoryItem, Product, Location, Category, Unit, ShoppingListItem } from '@/types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -19,12 +19,11 @@ export const inventoryApi = {
   getById: (id: number) => api.get<InventoryItem>(`/inventory/${id}`),
   create: (data: Partial<InventoryItem>) => api.post<InventoryItem>('/inventory', data),
   update: (id: number, data: Partial<InventoryItem>) => api.put<InventoryItem>(`/inventory/${id}`, data),
-  patch: (id: number, data: Partial<InventoryItem>) => api.patch<InventoryItem>(`/inventory/${id}`, data),
+  patch: (id: number, data: Partial<InventoryItem>) => api.patch<InventoryItem>(`/inventory/${id}`, data),  // ← U5-D
   consume: (id: number, quantity: number, type: 'used' | 'finished' | 'wasted') =>
     api.post(`/inventory/${id}/consume`, { quantity, type }),
   delete: (id: number) => api.delete(`/inventory/${id}`),
-  // U5-C: toggle favorito (atua sobre o Produto, mas exposto aqui por contexto de uso)
-  toggleFavorite: (productId: number) => api.patch<Product>(`/products/${productId}/favorite`),
+  toggleFavorite: (productId: number) => api.patch<Product>(`/products/${productId}/favorite`),  // ← U5-C
 }
 
 // ─── Products ────────────────────────────────────────────────────
@@ -35,7 +34,7 @@ export const productsApi = {
   getByBarcode: (barcode: string) => api.get<Product>(`/products/barcode/${barcode}`),
   create: (data: Partial<Product>) => api.post<Product>('/products', data),
   update: (id: number, data: Partial<Product>) => api.put<Product>(`/products/${id}`, data),
-  patch: (id: number, data: Partial<Product>) => api.patch<Product>(`/products/${id}`, data),
+  patch: (id: number, data: Partial<Product>) => api.patch<Product>(`/products/${id}`, data),  // ← U5-D
 }
 
 // ─── Config ──────────────────────────────────────────────────────
@@ -61,9 +60,10 @@ export const configApi = {
 
 // ─── Shopping ────────────────────────────────────────────────────
 export const shoppingApi = {
-  getList: () => api.get<ShoppingListGrouped>('/shopping'),
+  getList: () => api.get<ShoppingListItem[]>('/shopping'),
   addItem: (data: Partial<ShoppingListItem>) => api.post<ShoppingListItem>('/shopping', data),
-  patchItem: (id: number, data: Partial<ShoppingListItem>) => api.patch<ShoppingListItem>(`/shopping/${id}`, data),
+  checkItem: (id: number, checked: boolean) => api.patch(`/shopping/${id}`, { checked }),
+  completeItem: (id: number) => api.patch(`/shopping/${id}/complete`),
   deleteItem: (id: number) => api.delete(`/shopping/${id}`),
 }
 
@@ -110,6 +110,7 @@ export interface ReceiptItem {
   confirmed: boolean
   add_to_inventory: boolean
   is_manual: boolean
+  // U1-G
   location_id: number | null
   expiry_date: string | null
   barcode: string | null
@@ -117,17 +118,26 @@ export interface ReceiptItem {
 }
 
 export const receiptsApi = {
+  // Upload + OCR
   upload: (formData: FormData) => api.post<Receipt>('/receipts/upload', formData, {
     headers: { 'Content-Type': undefined },
     timeout: 60000,
   }),
+
+  // Listar e obter talões
   getAll: () => api.get<Receipt[]>('/receipts'),
   getById: (id: number) => api.get<Receipt>(`/receipts/${id}`),
+
+  // Confirmar talão (novo fluxo: sem items no body)
   confirm: (id: number, data: { store_id?: number | null; purchase_date?: string | null; items?: unknown[] }) =>
     api.post<Receipt>(`/receipts/${id}/confirm`, data),
+
+  // Editar e apagar talão (U1-B)
   update: (id: number, data: { store_id?: number | null; purchase_date?: string | null }) =>
     api.put<Receipt>(`/receipts/${id}`, data),
   delete: (id: number) => api.delete(`/receipts/${id}`),
+
+  // Items do talão (U1-B)
   getItems: (id: number) => api.get<ReceiptItem[]>(`/receipts/${id}/items`),
   addItem: (id: number, data: {
     parsed_name: string
@@ -177,9 +187,9 @@ export const mealTypesApi = {
 
 // ─── Shopping List ────────────────────────────────────────────────
 export const shoppingListApi = {
-  getAll: () => api.get<ShoppingListGrouped>('/shopping'),
-  add: (data: object) => api.post<ShoppingListItem>('/shopping', data),
-  patch: (id: number, data: object) => api.patch<ShoppingListItem>(`/shopping/${id}`, data),
+  getAll: () => api.get('/shopping'),
+  add: (data: object) => api.post('/shopping', data),
+  patch: (id: number, data: object) => api.patch(`/shopping/${id}`, data),
   delete: (id: number) => api.delete(`/shopping/${id}`),
   clearCompleted: () => api.delete('/shopping/completed/clear'),
   generate: () => api.post('/shopping/generate'),
@@ -189,6 +199,29 @@ export const shoppingListApi = {
 export const reportsApi = {
   getSummary: () => api.get('/reports/summary'),
   getCostHistory: (months?: number) => api.get(`/reports/costs${months ? `?months=${months}` : ''}`),
+}
+
+// ─── Favorites (U5-F) ─────────────────────────────────────────────
+
+export interface FavoriteProduct {
+  id: number
+  name: string
+  brand?: string | null
+  min_stock_quantity?: number | null
+  current_stock: number
+  unit_abbreviation: string
+  last_price?: number | null
+  avg_price?: number | null
+  price_history: number[]
+  last_purchase_date?: string | null
+  last_purchase_store?: string | null
+  avg_frequency_days?: number | null
+}
+
+export const favoritesApi = {
+  getAll: () => api.get<FavoriteProduct[]>('/favorites'),
+  updateMinStock: (productId: number, min: number) =>
+    api.patch(`/products/${productId}`, { min_stock_quantity: min }),
 }
 
 export default api

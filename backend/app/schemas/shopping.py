@@ -78,5 +78,22 @@ class ShoppingListGrouped(BaseModel):
     manual: list[ShoppingListItemResponse]
 
 
+# ─── Favoritos (U5-F) ────────────────────────────────────────────
+
+class FavoriteProductResponse(BaseModel):
+    id: int
+    name: str
+    brand: Optional[str] = None
+    min_stock_quantity: Optional[float] = None
+    current_stock: float
+    unit_abbreviation: str
+    last_price: Optional[float] = None
+    avg_price: Optional[float] = None
+    price_history: list[float]
+    last_purchase_date: Optional[str] = None
+    last_purchase_store: Optional[str] = None
+    avg_frequency_days: Optional[int] = None
+
+
 # Alias de compatibilidade
 ShoppingListCreate = ShoppingListItemCreate

@@ -4,7 +4,8 @@ import {
   ShoppingCart, Plus, Trash2, Star, AlertCircle, X, Send,
 } from 'lucide-react'
 import { shoppingListApi, productsApi } from '@/services/api'
-import type { ShoppingListItem, ShoppingListGrouped } from '@/types'
+import { FavoritesTable } from '@/components/shopping/FavoritesTable'
+import type { ShoppingListGrouped } from '@/types'
 
 // ─── Utilitários ──────────────────────────────────────────────────
 
@@ -21,8 +22,7 @@ function PriorityBadge({ priority }: { priority: string }) {
 function TriggerBadge({ trigger }: { trigger?: string | null }) {
   if (trigger === 'favorite') {
     return (
-      <span className="flex items-center gap-0.5 text-xs"
-        style={{ color: '#d29922' }}>
+      <span className="flex items-center gap-0.5 text-xs" style={{ color: '#d29922' }}>
         <Star size={10} fill="#d29922" /> favorito
       </span>
     )
@@ -37,7 +37,7 @@ function TriggerBadge({ trigger }: { trigger?: string | null }) {
   return null
 }
 
-// ─── Modal de adição manual (com produto opcional) ────────────────
+// ─── Modal de adição manual ───────────────────────────────────────
 
 function AddManualModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
@@ -58,10 +58,7 @@ function AddManualModal({ onClose }: { onClose: () => void }) {
         ? { product_id: selectedProduct.id, name: selectedProduct.name }
         : { name: text.trim() }
     ),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shopping'] })
-      onClose()
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shopping'] }); onClose() },
   })
 
   const canSubmit = mode === 'text' ? text.trim().length > 0 : selectedProduct !== null
@@ -74,7 +71,6 @@ function AddManualModal({ onClose }: { onClose: () => void }) {
         style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}
         onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b"
           style={{ borderColor: 'var(--color-nerv-border)' }}>
           <span className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>
@@ -86,14 +82,11 @@ function AddManualModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-4 space-y-3">
-
-          {/* Toggle modo */}
           <div className="flex rounded overflow-hidden border"
             style={{ borderColor: 'var(--color-nerv-border)' }}>
             {(['text', 'product'] as const).map(m => (
-              <button key={m}
-                onClick={() => setMode(m)}
-                className="flex-1 py-1.5 text-xs font-medium transition-colors"
+              <button key={m} onClick={() => setMode(m)}
+                className="flex-1 py-1.5 text-xs font-medium"
                 style={{
                   backgroundColor: mode === m ? 'var(--color-nerv-border)' : 'transparent',
                   color: mode === m ? 'var(--color-nerv-text)' : 'var(--color-nerv-muted)',
@@ -156,9 +149,7 @@ function AddManualModal({ onClose }: { onClose: () => void }) {
 
         <div className="flex gap-2 px-4 pb-4">
           <button onClick={onClose} className="flex-1 py-1.5 rounded text-sm"
-            style={{ color: 'var(--color-nerv-muted)' }}>
-            Cancelar
-          </button>
+            style={{ color: 'var(--color-nerv-muted)' }}>Cancelar</button>
           <button onClick={() => mutation.mutate()}
             disabled={!canSubmit || mutation.isPending}
             className="flex-1 py-1.5 rounded text-sm font-medium text-white disabled:opacity-40"
@@ -202,12 +193,6 @@ function ListaTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping'] }),
   })
 
-  function handleQuickAdd() {
-    const name = quickText.trim()
-    if (!name) return
-    quickAddMutation.mutate(name)
-  }
-
   if (isLoading) {
     return (
       <div className="py-12 text-center text-sm" style={{ color: 'var(--color-nerv-muted)' }}>
@@ -220,7 +205,7 @@ function ListaTab() {
     <div className="space-y-4">
       {showAdd && <AddManualModal onClose={() => setShowAdd(false)} />}
 
-      {/* Quick add inline */}
+      {/* Quick add */}
       <div className="flex gap-2">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded border"
           style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
@@ -230,7 +215,7 @@ function ListaTab() {
             placeholder="Adicionar item rápido..."
             value={quickText}
             onChange={e => setQuickText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleQuickAdd() }}
+            onKeyDown={e => { if (e.key === 'Enter' && quickText.trim()) quickAddMutation.mutate(quickText.trim()) }}
             className="flex-1 bg-transparent text-sm outline-none"
             style={{ color: 'var(--color-nerv-text)' }}
           />
@@ -242,18 +227,16 @@ function ListaTab() {
           )}
         </div>
         <button
-          onClick={handleQuickAdd}
+          onClick={() => quickAddMutation.mutate(quickText.trim())}
           disabled={!quickText.trim() || quickAddMutation.isPending}
           className="px-3 py-2 rounded border disabled:opacity-40"
-          style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-muted)' }}
-          title="Adicionar">
+          style={{ borderColor: 'var(--color-nerv-border)', color: 'var(--color-nerv-muted)' }}>
           <Send size={14} />
         </button>
         <button
           onClick={() => setShowAdd(true)}
           className="px-3 py-2 rounded text-sm font-medium text-white"
-          style={{ backgroundColor: 'var(--color-nerv-accent)' }}
-          title="Adicionar com produto">
+          style={{ backgroundColor: 'var(--color-nerv-accent)' }}>
           <Plus size={14} />
         </button>
       </div>
@@ -262,18 +245,15 @@ function ListaTab() {
       {total === 0 && (
         <div className="rounded-lg border py-12 text-center"
           style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
-          <ShoppingCart size={32} className="mx-auto mb-3"
-            style={{ color: 'var(--color-nerv-border)' }} />
-          <p className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>
-            Lista vazia
-          </p>
+          <ShoppingCart size={32} className="mx-auto mb-3" style={{ color: 'var(--color-nerv-border)' }} />
+          <p className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>Lista vazia</p>
           <p className="text-xs mt-1" style={{ color: 'var(--color-nerv-muted)' }}>
             Os itens aparecem automaticamente quando um favorito desce abaixo do mínimo de stock.
           </p>
         </div>
       )}
 
-      {/* Secção auto-gerados */}
+      {/* Auto-gerados */}
       {auto.length > 0 && (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide mb-2"
@@ -283,21 +263,39 @@ function ListaTab() {
           <div className="rounded-lg border overflow-hidden"
             style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
             {auto.map((item, idx) => (
-              <AutoItem
-                key={item.id}
-                item={item}
-                isLast={idx === auto.length - 1}
-              />
+              <div key={item.id}
+                className="flex items-center gap-3 px-4 py-3"
+                style={{ borderBottom: idx < auto.length - 1 ? '1px solid var(--color-nerv-border)' : 'none' }}>
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
+                  backgroundColor: item.priority === 'high'
+                    ? 'var(--color-nerv-danger)' : 'var(--color-nerv-warning)',
+                }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--color-nerv-text)' }}>
+                    {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <TriggerBadge trigger={item.trigger_type} />
+                    <PriorityBadge priority={item.priority} />
+                  </div>
+                </div>
+                {item.estimated_price != null && (
+                  <span className="text-xs shrink-0" style={{ color: 'var(--color-nerv-muted)' }}>
+                    ~€{item.estimated_price.toFixed(2)}
+                  </span>
+                )}
+              </div>
             ))}
           </div>
-          <p className="text-xs mt-1.5" style={{ color: 'var(--color-nerv-muted)' }}>
-            <AlertCircle size={10} className="inline mr-1" />
+          <p className="text-xs mt-1.5 flex items-center gap-1"
+            style={{ color: 'var(--color-nerv-muted)' }}>
+            <AlertCircle size={10} />
             Removidos automaticamente ao confirmar um talão com este produto.
           </p>
         </div>
       )}
 
-      {/* Secção manuais */}
+      {/* Manuais */}
       {manual.length > 0 && (
         <div>
           <p className="text-xs font-medium uppercase tracking-wide mb-2"
@@ -307,12 +305,21 @@ function ListaTab() {
           <div className="rounded-lg border overflow-hidden"
             style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
             {manual.map((item, idx) => (
-              <ManualItem
-                key={item.id}
-                item={item}
-                isLast={idx === manual.length - 1}
-                onDelete={() => deleteMutation.mutate(item.id)}
-              />
+              <div key={item.id}
+                className="flex items-center gap-3 px-4 py-3 group"
+                style={{ borderBottom: idx < manual.length - 1 ? '1px solid var(--color-nerv-border)' : 'none' }}>
+                <div className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: 'var(--color-nerv-border)' }} />
+                <p className="flex-1 text-sm truncate" style={{ color: 'var(--color-nerv-text)' }}>
+                  {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
+                </p>
+                <button
+                  onClick={() => deleteMutation.mutate(item.id)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                  style={{ color: 'var(--color-nerv-danger)' }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -321,84 +328,10 @@ function ListaTab() {
   )
 }
 
-function AutoItem({ item, isLast }: { item: ShoppingListItem; isLast: boolean }) {
-  return (
-    <div
-      className="flex items-center gap-3 px-4 py-3"
-      style={{
-        borderBottom: isLast ? 'none' : '1px solid var(--color-nerv-border)',
-      }}>
-      {/* Indicador de prioridade */}
-      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
-        backgroundColor: item.priority === 'high'
-          ? 'var(--color-nerv-danger)'
-          : 'var(--color-nerv-warning)',
-      }} />
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: 'var(--color-nerv-text)' }}>
-          {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
-        </p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <TriggerBadge trigger={item.trigger_type} />
-          <PriorityBadge priority={item.priority} />
-        </div>
-      </div>
-
-      {item.estimated_price != null && (
-        <span className="text-xs shrink-0" style={{ color: 'var(--color-nerv-muted)' }}>
-          ~€{item.estimated_price.toFixed(2)}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function ManualItem({
-  item, isLast, onDelete,
-}: {
-  item: ShoppingListItem
-  isLast: boolean
-  onDelete: () => void
-}) {
-  return (
-    <div
-      className="flex items-center gap-3 px-4 py-3 group"
-      style={{
-        borderBottom: isLast ? 'none' : '1px solid var(--color-nerv-border)',
-      }}>
-      <div className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: 'var(--color-nerv-border)' }} />
-
-      <p className="flex-1 text-sm truncate" style={{ color: 'var(--color-nerv-text)' }}>
-        {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
-      </p>
-
-      <button
-        onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
-        style={{ color: 'var(--color-nerv-danger)' }}
-        title="Remover">
-        <Trash2 size={13} />
-      </button>
-    </div>
-  )
-}
-
-// ─── Tab 2 — Placeholder (U5-F) ───────────────────────────────────
+// ─── Tab 2 — Favoritos (U5-F) ─────────────────────────────────────
 
 function FavoritosTab() {
-  return (
-    <div className="py-12 text-center">
-      <Star size={32} className="mx-auto mb-3" style={{ color: 'var(--color-nerv-border)' }} />
-      <p className="text-sm font-medium" style={{ color: 'var(--color-nerv-text)' }}>
-        Gestão de favoritos
-      </p>
-      <p className="text-xs mt-1" style={{ color: 'var(--color-nerv-muted)' }}>
-        Em breve — U5-F
-      </p>
-    </div>
-  )
+  return <FavoritesTable />
 }
 
 // ─── Página principal ─────────────────────────────────────────────
@@ -415,8 +348,6 @@ export default function ShoppingList() {
 
   return (
     <div className="space-y-4">
-
-      {/* Cabeçalho */}
       <div>
         <h1 className="text-xl font-semibold" style={{ color: 'var(--color-nerv-text)' }}>
           Lista de Compras
@@ -439,22 +370,14 @@ export default function ShoppingList() {
             onClick={() => setActiveTab(tab.key)}
             className="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
             style={{
-              borderBottomColor: activeTab === tab.key
-                ? 'var(--color-nerv-accent)'
-                : 'transparent',
-              color: activeTab === tab.key
-                ? 'var(--color-nerv-text)'
-                : 'var(--color-nerv-muted)',
+              borderBottomColor: activeTab === tab.key ? 'var(--color-nerv-accent)' : 'transparent',
+              color: activeTab === tab.key ? 'var(--color-nerv-text)' : 'var(--color-nerv-muted)',
               marginBottom: '-1px',
             }}>
             {tab.label}
             {tab.key === 'lista' && totalPending > 0 && (
               <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: 'var(--color-nerv-accent)',
-                  color: '#fff',
-                  fontSize: '10px',
-                }}>
+                style={{ backgroundColor: 'var(--color-nerv-accent)', color: '#fff', fontSize: '10px' }}>
                 {totalPending}
               </span>
             )}
@@ -462,7 +385,6 @@ export default function ShoppingList() {
         ))}
       </div>
 
-      {/* Conteúdo da tab activa */}
       {activeTab === 'lista' ? <ListaTab /> : <FavoritosTab />}
     </div>
   )
