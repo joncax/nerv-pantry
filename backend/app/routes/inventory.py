@@ -20,7 +20,14 @@ from app.services.favorites_service import check_and_add_to_shopping
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 
-# ── Stats (rota específica ANTES de /{id}) ─────────────────────────────────────
+def _load_options():
+    """Joinedloads partilhados por todos os GET endpoints."""
+    return [
+        joinedload(Inventory.product),
+        joinedload(Inventory.location),
+        joinedload(Inventory.unit),
+    ]
+
 
 @router.get("/stats", response_model=InventoryStats)
 async def get_stats(db: Session = Depends(get_db)):
@@ -55,8 +62,6 @@ async def get_stats(db: Session = Depends(get_db)):
     return InventoryStats(total=total, expiring_soon=expiring_soon, expired=expired)
 
 
-# ── CRUD ───────────────────────────────────────────────────────────────────────
-
 @router.get("", response_model=List[InventoryResponse])
 async def list_inventory(
     location_id: Optional[int] = None,
@@ -65,7 +70,7 @@ async def list_inventory(
 ):
     query = (
         db.query(Inventory)
-        .options(joinedload(Inventory.product))
+        .options(*_load_options())
         .filter(Inventory.quantity > 0)
     )
     if location_id:
@@ -83,7 +88,7 @@ async def list_inventory(
 async def get_inventory_item(item_id: int, db: Session = Depends(get_db)):
     item = (
         db.query(Inventory)
-        .options(joinedload(Inventory.product))
+        .options(*_load_options())
         .filter(Inventory.id == item_id)
         .first()
     )
@@ -99,7 +104,7 @@ async def create_inventory_item(data: InventoryCreate, db: Session = Depends(get
     db.commit()
     return (
         db.query(Inventory)
-        .options(joinedload(Inventory.product))
+        .options(*_load_options())
         .filter(Inventory.id == item.id)
         .first()
     )
@@ -117,13 +122,12 @@ async def update_inventory_item(
     db.commit()
     return (
         db.query(Inventory)
-        .options(joinedload(Inventory.product))
+        .options(*_load_options())
         .filter(Inventory.id == item_id)
         .first()
     )
 
 
-# U5-B: PATCH para edição parcial (usado no modal de edição U5-D)
 @router.patch("/{item_id}", response_model=InventoryResponse)
 async def patch_inventory_item(
     item_id: int, data: InventoryUpdate, db: Session = Depends(get_db)
@@ -136,7 +140,7 @@ async def patch_inventory_item(
     db.commit()
     return (
         db.query(Inventory)
-        .options(joinedload(Inventory.product))
+        .options(*_load_options())
         .filter(Inventory.id == item_id)
         .first()
     )
@@ -167,7 +171,6 @@ async def consume_inventory(
     db.add(log)
     db.commit()
 
-    # U5-B: auto-adicionar à lista de compras se favorito abaixo do mínimo
     check_and_add_to_shopping(item.product_id, db)
 
     return {"success": True, "remaining_quantity": item.quantity}

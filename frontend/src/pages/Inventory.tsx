@@ -322,9 +322,11 @@ export default function Inventory() {
     totalItems,
   } = useInventoryFilters(items)
 
-  const displayItems = filteredItems.filter(item =>
-    item.product?.name?.toLowerCase().includes(search.toLowerCase())
-  )
+  const displayItems = search
+  ? filteredItems.filter(item =>
+      item.product?.name?.toLowerCase().includes(search.toLowerCase()) ?? false
+    )
+  : filteredItems
 
   const hasAnyFilter = activeFilterCount > 0 || search.length > 0
 

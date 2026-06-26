@@ -6,6 +6,36 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
+# ─── Schemas aninhados (evitar importação circular) ───────────────
+
+class _Product(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    brand: Optional[str] = None
+    category_id: Optional[int] = None
+    consumption_type: Optional[str] = None
+    min_stock_quantity: Optional[float] = None
+    is_favorite: bool = False
+
+
+class _Location(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    icon: Optional[str] = None
+    color: Optional[str] = None
+
+
+class _Unit(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    abbreviation: str
+
+
+# ─── Schemas principais ───────────────────────────────────────────
+
 class InventoryCreate(BaseModel):
     product_id: int
     location_id: Optional[int] = None
@@ -44,14 +74,16 @@ class InventoryResponse(BaseModel):
 
     id: int
     product_id: int
+    product: Optional[_Product] = None       # ← restaurado
     location_id: Optional[int] = None
+    location: Optional[_Location] = None     # ← restaurado
     quantity: float
     unit_id: Optional[int] = None
+    unit: Optional[_Unit] = None             # ← restaurado
     expiry_date: Optional[date] = None
     purchase_date: Optional[date] = None
     purchase_price: Optional[float] = None
     receipt_item_id: Optional[int] = None
     notes: Optional[str] = None
     created_at: datetime
-    # U5-A: exposto via @property no modelo Inventory
     product_is_favorite: bool = False
