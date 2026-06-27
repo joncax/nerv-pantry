@@ -169,6 +169,13 @@ export function InventoryEditModal({ item, onClose }: Props) {
                   {item.purchase_price != null ? `€${item.purchase_price.toFixed(2)}` : '—'}
                 </p>
               </div>
+              {/* U6-E: loja onde foi comprado */}
+              <div className="col-span-2">
+                <p className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>Loja</p>
+                <p className="text-sm" style={{ color: 'var(--color-nerv-text)' }}>
+                  {item.store?.name ?? '—'}
+                </p>
+              </div>
             </div>
           </div>
 

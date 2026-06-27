@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.db.database import get_db
 from app.models.inventory import Inventory
 from app.models.meal import ConsumptionLog
+from app.models.receipt import Receipt, ReceiptItem  # U6-E
 from app.schemas.inventory import (
     ConsumeRequest,
     InventoryCreate,
@@ -26,6 +27,10 @@ def _load_options():
         joinedload(Inventory.product),
         joinedload(Inventory.location),
         joinedload(Inventory.unit),
+        # U6-E: cadeia para expor a loja no InventoryResponse
+        joinedload(Inventory.receipt_item)
+            .joinedload(ReceiptItem.receipt)
+            .joinedload(Receipt.store),
     ]
 
 

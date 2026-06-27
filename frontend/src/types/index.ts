@@ -72,6 +72,8 @@ export interface InventoryItem {
   notes?: string
   // U5-A
   product_is_favorite: boolean
+  // U6-E
+  store?: Store | null
   created_at: string
 }
 

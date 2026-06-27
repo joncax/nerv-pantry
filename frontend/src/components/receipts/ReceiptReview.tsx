@@ -270,7 +270,10 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
                 {/* Metadata: loja + data */}
                 <div className="flex flex-wrap gap-3">
                   <div className="flex flex-col gap-1 flex-1 min-w-32">
-                    <label className="text-xs" style={{ color: 'var(--color-nerv-muted)' }}>Loja</label>
+                    {/* U6-E: label com aviso quando loja não selecionada */}
+                    <label className="text-xs" style={{ color: !storeId ? 'var(--color-nerv-warning)' : 'var(--color-nerv-muted)' }}>
+                      Loja{!storeId && <span className="ml-1 font-normal" style={{ fontSize: '10px' }}>— obrigatória para confirmar</span>}
+                    </label>
                     <select
                       value={storeId ?? ''}
                       onChange={e => {
@@ -279,7 +282,7 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
                         saveMetadata(v, purchaseDate)
                       }}
                       className="text-sm px-2 py-1.5 rounded border"
-                      style={selectStyle}
+                      style={{ ...selectStyle, borderColor: !storeId ? 'var(--color-nerv-warning)' : 'var(--color-nerv-border)' }}
                     >
                       <option value="">— Selecionar loja —</option>
                       {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -510,7 +513,7 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
                 style={{ backgroundColor: 'var(--color-nerv-bg)', borderColor: 'var(--color-nerv-border)' }}>
                 <button
                   onClick={handleConfirm}
-                  disabled={confirming || anySaving}
+                  disabled={confirming || anySaving || !storeId}  /* U6-E: loja obrigatória */
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity hover:opacity-90"
                   style={{ backgroundColor: 'var(--color-nerv-accent)' }}>
                   {confirming
