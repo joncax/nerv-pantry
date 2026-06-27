@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   X, Check, Loader2, ChevronDown, ChevronUp,
   Plus, Trash2, Save, AlertTriangle, ImageOff,
@@ -34,6 +34,7 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
   const [items, setItems] = useState<ReceiptItem[]>([])
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set())
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set())
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set())  // U6-B
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -115,9 +116,24 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
     }, 500)
   }
 
+  // U6-B: delete robusto — loading state + error handling
+  const deleteItemMutation = useMutation({
+    mutationFn: (itemId: number) => receiptsApi.deleteItem(receiptId, itemId),
+    onMutate: (itemId) => {
+      setDeletingIds(prev => new Set([...prev, itemId]))
+    },
+    onSuccess: (_data, itemId) => {
+      setItems(prev => prev.filter(i => i.id !== itemId))
+      setDeletingIds(prev => { const s = new Set(prev); s.delete(itemId); return s })
+    },
+    onError: (_err, itemId) => {
+      setDeletingIds(prev => { const s = new Set(prev); s.delete(itemId); return s })
+      setError('Erro ao remover produto. Tenta novamente.')
+    },
+  })
+
   async function handleDeleteItem(itemId: number) {
-    await receiptsApi.deleteItem(receiptId, itemId)
-    setItems(prev => prev.filter(i => i.id !== itemId))
+    deleteItemMutation.mutate(itemId)
   }
 
   async function handleAddItem() {
@@ -326,10 +342,16 @@ export default function ReceiptReview({ receiptId, onClose, onConfirmed }: Recei
                           <div className="flex items-center gap-1 shrink-0">
                             {isSaving && <Loader2 size={11} className="animate-spin" style={{ color: 'var(--color-nerv-muted)' }} />}
                             {isSaved && !isSaving && <Save size={11} style={{ color: 'var(--color-nerv-success)' }} />}
-                            <button onClick={() => handleDeleteItem(item.id)}
-                              className="p-0.5 transition-opacity hover:opacity-70"
-                              style={{ color: 'var(--color-nerv-muted)' }}>
-                              <Trash2 size={13} />
+                            {/* U6-B: botão de remover com loading + disabled durante delete */}
+                            <button
+                              onClick={() => handleDeleteItem(item.id)}
+                              disabled={deletingIds.has(item.id)}
+                              title="Remover este produto do talão"
+                              className="p-0.5 transition-opacity hover:opacity-70 disabled:opacity-30"
+                              style={{ color: 'var(--color-nerv-danger)' }}>
+                              {deletingIds.has(item.id)
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <Trash2 size={13} />}
                             </button>
                           </div>
                         </div>
