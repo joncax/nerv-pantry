@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ShoppingCart, Plus, Trash2, Star, AlertCircle, X, Send,
+  ShoppingCart, Plus, Trash2, Star, AlertCircle, X, Send, Pencil,
 } from 'lucide-react'
 import { shoppingListApi, productsApi } from '@/services/api'
 import { FavoritesTable } from '@/components/shopping/FavoritesTable'
@@ -184,6 +184,8 @@ function ListaTab() {
   const [showAdd, setShowAdd] = useState(false)
   const [quickText, setQuickText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)  // U6-C
+  const [editingName, setEditingName] = useState('')                        // U6-C
 
   const { data, isLoading } = useQuery<ShoppingListGrouped>({
     queryKey: ['shopping'],
@@ -207,6 +209,30 @@ function ListaTab() {
     mutationFn: (id: number) => shoppingListApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping'] }),
   })
+
+  // U6-C: edição inline do nome
+  const patchMutation = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      shoppingListApi.patch(id, { name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shopping'] })
+      setEditingItemId(null)
+    },
+  })
+
+  function handleStartEdit(id: number, currentName: string) {
+    setEditingItemId(id)
+    setEditingName(currentName)
+  }
+
+  function handleSaveEdit(id: number) {
+    const trimmed = editingName.trim()
+    if (trimmed) {
+      patchMutation.mutate({ id, name: trimmed })
+    } else {
+      setEditingItemId(null)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -319,23 +345,63 @@ function ListaTab() {
           </p>
           <div className="rounded-lg border overflow-hidden"
             style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
-            {manual.map((item, idx) => (
+            {manual.map((item, idx) => {
+              const displayName = item.name ?? item.product?.name ?? `Produto #${item.product_id}`
+              const isEditing = editingItemId === item.id
+              const isSavingThis = patchMutation.isPending && editingItemId === item.id
+
+              return (
               <div key={item.id}
                 className="flex items-center gap-3 px-4 py-3 group"
                 style={{ borderBottom: idx < manual.length - 1 ? '1px solid var(--color-nerv-border)' : 'none' }}>
                 <div className="w-1.5 h-1.5 rounded-full shrink-0"
                   style={{ backgroundColor: 'var(--color-nerv-border)' }} />
-                <p className="flex-1 text-sm truncate" style={{ color: 'var(--color-nerv-text)' }}>
-                  {item.name ?? item.product?.name ?? `Produto #${item.product_id}`}
-                </p>
+
+                {/* U6-C: toggle edição/visualização */}
+                {isEditing ? (
+                  <input
+                    autoFocus
+                    value={editingName}
+                    onChange={e => setEditingName(e.target.value)}
+                    onBlur={() => handleSaveEdit(item.id)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveEdit(item.id)
+                      if (e.key === 'Escape') setEditingItemId(null)
+                    }}
+                    disabled={isSavingThis}
+                    className="flex-1 bg-transparent text-sm outline-none border-b disabled:opacity-50"
+                    style={{ color: 'var(--color-nerv-text)', borderColor: 'var(--color-nerv-accent)' }}
+                  />
+                ) : (
+                  <p
+                    className="flex-1 text-sm truncate cursor-pointer"
+                    title="Clica para editar"
+                    onClick={() => handleStartEdit(item.id, displayName)}
+                    style={{ color: 'var(--color-nerv-text)' }}>
+                    {displayName}
+                  </p>
+                )}
+
+                {/* Botão editar (visível no hover, escondido quando a editar) */}
+                {!isEditing && (
+                  <button
+                    onClick={() => handleStartEdit(item.id, displayName)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded shrink-0"
+                    style={{ color: 'var(--color-nerv-muted)' }}>
+                    <Pencil size={12} />
+                  </button>
+                )}
+
                 <button
                   onClick={() => deleteMutation.mutate(item.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                  disabled={isEditing}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded shrink-0 disabled:opacity-0"
                   style={{ color: 'var(--color-nerv-danger)' }}>
                   <Trash2 size={13} />
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
