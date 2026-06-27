@@ -38,3 +38,15 @@ class Inventory(Base):
     @property
     def product_is_favorite(self) -> bool:
         return self.product.is_favorite if self.product else False
+
+    # U6-E: expõe a loja do receipt_item → receipt → store
+    # Mesmo padrão de product_is_favorite — Pydantic lê via from_attributes
+    @property
+    def store(self):
+        ri = self.receipt_item
+        if ri is None:
+            return None
+        receipt = getattr(ri, 'receipt', None)
+        if receipt is None:
+            return None
+        return getattr(receipt, 'store', None)
