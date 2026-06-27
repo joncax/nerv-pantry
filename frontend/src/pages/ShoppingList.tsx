@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ShoppingCart, Plus, Trash2, Star, AlertCircle, X, Send,
@@ -46,11 +46,26 @@ function AddManualModal({ onClose }: { onClose: () => void }) {
   const [productSearch, setProductSearch] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<{ id: number; name: string } | null>(null)
 
-  const { data: products = [] } = useQuery<{ id: number; name: string }[]>({
-    queryKey: ['products', productSearch],
+  const { data: rawProducts = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ['products-search', productSearch],
     queryFn: () => productsApi.getAll({ search: productSearch }).then(r => r.data),
     enabled: productSearch.length > 1,
   })
+
+  // U6-A: deduplicate — o OCR pode criar múltiplas entradas com o mesmo nome
+  // Remove duplicados por id (JOINs no backend) e por nome normalizado (re-scans)
+  const products = useMemo(() => {
+    const seenIds = new Set<number>()
+    const seenNames = new Set<string>()
+    return rawProducts.filter(p => {
+      if (seenIds.has(p.id)) return false
+      const nameKey = p.name.trim().toLowerCase()
+      if (seenNames.has(nameKey)) return false
+      seenIds.add(p.id)
+      seenNames.add(nameKey)
+      return true
+    })
+  }, [rawProducts])
 
   const mutation = useMutation({
     mutationFn: () => shoppingListApi.add(
