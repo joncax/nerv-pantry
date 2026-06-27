@@ -61,15 +61,17 @@ def check_and_add_to_shopping(product_id: int, db: Session) -> None:
 def check_and_remove_from_shopping(product_id: int, db: Session) -> None:
     """
     Chamado após confirmação de talão.
-    Remove da lista os itens auto-gerados para este produto
-    (o talão restockou-o, já não precisa de ser comprado).
+    Remove da lista TODOS os itens activos com este product_id,
+    independentemente de serem auto-gerados ou adicionados manualmente.
+    U6-D: removido filtro added_automatically — o produto foi comprado,
+    deve sair da lista seja qual for a origem do item.
     """
     items = (
         db.query(ShoppingList)
         .filter(
             ShoppingList.product_id == product_id,
             ShoppingList.completed == False,
-            ShoppingList.added_automatically == True,
+            # U6-D: sem filtro added_automatically
         )
         .all()
     )

@@ -1,5 +1,6 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -137,11 +138,22 @@ def confirm_receipt(
 
             product_id = item.product_id
             if not product_id:
-                product = Product(name=item.parsed_name, consumption_type="partial")
-                db.add(product)
-                db.flush()
-                product_id = product.id
-                item.product_id = product_id
+                # U6-D: procurar produto existente pelo nome antes de criar um novo
+                # Evita criar duplicados e garante que o auto-remove da lista funciona
+                existing = (
+                    db.query(Product)
+                    .filter(func.lower(Product.name) == func.lower(item.parsed_name))
+                    .first()
+                )
+                if existing:
+                    product_id = existing.id
+                    item.product_id = product_id
+                else:
+                    product = Product(name=item.parsed_name, consumption_type="partial")
+                    db.add(product)
+                    db.flush()
+                    product_id = product.id
+                    item.product_id = product_id
 
             total_amount += item.effective_price or item.original_price or 0
 
@@ -175,10 +187,19 @@ def confirm_receipt(
 
             product_id = item_data.product_id
             if not product_id:
-                product = Product(name=item_data.parsed_name, consumption_type="partial")
-                db.add(product)
-                db.flush()
-                product_id = product.id
+                # U6-D: procurar produto existente pelo nome (retrocompat path)
+                existing = (
+                    db.query(Product)
+                    .filter(func.lower(Product.name) == func.lower(item_data.parsed_name))
+                    .first()
+                )
+                if existing:
+                    product_id = existing.id
+                else:
+                    product = Product(name=item_data.parsed_name, consumption_type="partial")
+                    db.add(product)
+                    db.flush()
+                    product_id = product.id
 
             unit_id = item_data.unit_id
             unit_guess = getattr(item_data, 'unit_guess', None)
