@@ -305,7 +305,7 @@ function ListaTab() {
             style={{ backgroundColor: 'var(--color-nerv-surface)', borderColor: 'var(--color-nerv-border)' }}>
             {auto.map((item, idx) => (
               <div key={item.id}
-                className="flex items-center gap-3 px-4 py-3"
+                className="flex items-center gap-3 px-4 py-3 group"
                 style={{ borderBottom: idx < auto.length - 1 ? '1px solid var(--color-nerv-border)' : 'none' }}>
                 <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{
                   backgroundColor: item.priority === 'high'
@@ -325,6 +325,13 @@ function ListaTab() {
                     ~€{item.estimated_price.toFixed(2)}
                   </span>
                 )}
+                <button
+                  onClick={() => deleteMutation.mutate(item.id)}
+                  title="Remover da lista"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded shrink-0"
+                  style={{ color: 'var(--color-nerv-danger)' }}>
+                  <X size={13} />
+                </button>
               </div>
             ))}
           </div>
