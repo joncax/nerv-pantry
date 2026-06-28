@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUp, ArrowDown, Star } from 'lucide-react'
-import { favoritesApi } from '@/services/api'
+import { ArrowUp, ArrowDown, Star, X } from 'lucide-react'
+import { favoritesApi, inventoryApi } from '@/services/api'
 import type { FavoriteProduct } from '@/services/api'
 import { FavoriteProductModal } from './FavoriteProductModal'
 import { getPriceTrend } from '@/utils/sparkline'
@@ -74,6 +74,14 @@ export function FavoritesTable() {
     },
   })
 
+  const removeFavoriteMutation = useMutation({  // U6-F
+    mutationFn: (productId: number) => inventoryApi.toggleFavorite(productId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['favorites'] })
+      qc.invalidateQueries({ queryKey: ['inventory'] })
+    },
+  })
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
@@ -130,7 +138,7 @@ export function FavoritesTable() {
         <div className="grid px-4 py-2 border-b"
           style={{
             borderColor: 'var(--color-nerv-border)',
-            gridTemplateColumns: '2fr 1fr 80px 1fr 1fr',
+            gridTemplateColumns: '2fr 1fr 80px 1fr 1fr 32px',
             gap: '8px',
           }}>
           <SortHeader {...headerProps('name',       'Produto')} />
@@ -138,15 +146,16 @@ export function FavoritesTable() {
           <SortHeader {...headerProps('min',        'Mínimo')} />
           <SortHeader {...headerProps('last_price', 'Último')} />
           <SortHeader {...headerProps('avg_price',  'Médio')} />
+          <div />
         </div>
 
         {/* Linhas */}
         {sorted.map((product, idx) => (
           <div
             key={product.id}
-            className="grid px-4 py-3 items-center transition-colors"
+            className="grid px-4 py-3 items-center transition-colors group"
             style={{
-              gridTemplateColumns: '2fr 1fr 80px 1fr 1fr',
+              gridTemplateColumns: '2fr 1fr 80px 1fr 1fr 32px',
               gap: '8px',
               borderBottom: idx < sorted.length - 1 ? '1px solid var(--color-nerv-border)' : 'none',
               cursor: 'pointer',
@@ -212,6 +221,18 @@ export function FavoritesTable() {
             {/* Preço médio */}
             <div className="text-sm" style={{ color: 'var(--color-nerv-muted)' }}>
               {product.avg_price != null ? `€${product.avg_price.toFixed(2)}` : '—'}
+            </div>
+
+            {/* U6-F: remover dos favoritos */}
+            <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => removeFavoriteMutation.mutate(product.id)}
+                disabled={removeFavoriteMutation.isPending}
+                title="Remover dos favoritos"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded disabled:opacity-30"
+                style={{ color: 'var(--color-nerv-danger)' }}>
+                <X size={13} />
+              </button>
             </div>
           </div>
         ))}
