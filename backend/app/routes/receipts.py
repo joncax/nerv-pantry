@@ -414,3 +414,18 @@ def update_receipt_item(
     db.commit()
     db.refresh(item)
     return item
+
+@router.delete("/receipts/{receipt_id}/items/{item_id}", status_code=204)
+def delete_receipt_item(
+    receipt_id: int, item_id: int, db: Session = Depends(get_db)
+):
+    """Remove um item do talão antes de confirmar. U6-B fix."""
+    item = db.query(ReceiptItem).filter(
+        ReceiptItem.id == item_id,
+        ReceiptItem.receipt_id == receipt_id,
+        ReceiptItem.confirmed == False,  # só permite apagar itens por confirmar
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado ou já confirmado")
+    db.delete(item)
+    db.commit()
